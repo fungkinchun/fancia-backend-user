@@ -1,0 +1,37 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto24
+    commands:
+      - echo Logging in to Amazon CodeArtifact...
+      - export ARTIFACT_REPO_URL=https://${DOMAIN_NAME}-${ACCOUNT_ID}.d.codeartifact.${AWS_REGION}.amazonaws.com/maven
+      - export ARTIFACT_REPO_USER=aws
+      - export ARTIFACT_REPO_PASSWORD=$(aws codeartifact get-authorization-token --domain $DOMAIN_NAME --domain-owner $ACCOUNT_ID --region $AWS_REGION --query authorizationToken --output text)
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      - echo Configuring environment variables
+      - export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_url)
+      - export DATABASE_USERNAME=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_username)
+      - export DATABASE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_password)
+      - echo Installing dependencies...
+      - ./gradlew dependencies
+  pre_build:
+    commands:
+      - echo Cleaning project...
+      - ./gradlew clean
+  build:
+    commands:
+      - echo Building Kotlin project...
+      - ./gradlew build
+  post_build:
+    commands:
+      - echo Building Docker image and pushing to Amazon ECR...
+      - docker build -t $REPO_NAME:latest .
+      - docker tag $REPO_NAME:latest $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPO_NAME:latest
+      - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPO_NAME:latest
+      - echo Build and publish completed.
+artifacts:
+  files:
+    - build/libs/**/*.jar
