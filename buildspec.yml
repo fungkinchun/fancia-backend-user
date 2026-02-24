@@ -24,7 +24,7 @@ phases:
   build:
     commands:
       - echo Building Kotlin project...
-      - ./gradlew build
+      - ./gradlew build --debug --stacktrace
   post_build:
     commands:
       - echo Building Docker image and pushing to Amazon ECR...
