@@ -4,9 +4,6 @@ spring:
   config:
     import:
       - optional:file:.env[.properties]
-      - aws-secretsmanager:${AWS_RDS_SECRET_NAME}/database
-      - aws-secretsmanager:${ENV}/${REPO_NAME}/smtp
-      - aws-secretsmanager:${ENV}/${REPO_NAME}/s3
   security:
     oauth2:
       resourceserver:
