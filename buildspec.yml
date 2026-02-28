@@ -11,10 +11,6 @@ phases:
       - export ARTIFACT_REPO_PASSWORD=$(aws codeartifact get-authorization-token --domain $DOMAIN_NAME --domain-owner $ACCOUNT_ID --region $AWS_REGION --query authorizationToken --output text)
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-      - echo Configuring environment variables
-      - export DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_url)
-      - export DATABASE_USERNAME=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_username)
-      - export DATABASE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id ${ENV}/${REPO_NAME}/database --region $AWS_REGION --query SecretString --output text | jq -r .database_password)
       - echo Installing dependencies...
       - ./gradlew dependencies
   pre_build:
@@ -24,7 +20,7 @@ phases:
   build:
     commands:
       - echo Building Kotlin project...
-      - ./gradlew build --debug --stacktrace
+      - ./gradlew build --info --stacktrace
   post_build:
     commands:
       - echo Building Docker image and pushing to Amazon ECR...

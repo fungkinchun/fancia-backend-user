@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM amazoncorretto:24-alpine
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY build/libs/*.jar app.jar

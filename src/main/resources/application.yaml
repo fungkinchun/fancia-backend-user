@@ -2,7 +2,11 @@ server:
   port: 8081
 spring:
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - aws-secretsmanager:${AWS_RDS_SECRET_NAME}/database
+      - aws-secretsmanager:${ENV}/${REPO_NAME}/smtp
+      - aws-secretsmanager:${ENV}/${REPO_NAME}/s3
   security:
     oauth2:
       resourceserver:
@@ -10,10 +14,10 @@ spring:
           issuer-uri:
             http://localhost:9000
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
-    driver-class-name: org.postgresql.Driver
+    url: ${DATABASE_URL:${database_url}}
+    username: ${DATABASE_USERNAME:${database_username}}
+    password: ${DATABASE_PASSWORD:${database_password}}
+    driver-class-name: ${DATABASE_DRIVER:com.amazonaws.secretsmanager.sql.AWSSecretsManagerPostgreSQLDriver}
   jpa:
     properties:
       hibernate:
@@ -23,8 +27,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${SMTP_USERNAME}
-    password: ${SMTP_PASSWORD}
+    username: ${SMTP_USERNAME:${smtp_username}}
+    password: ${SMTP_PASSWORD:${smtp_password}}
     properties:
       mail:
         smtp:
@@ -39,9 +43,9 @@ app:
   base-url: http://localhost:8081
   login-page-url: http://localhost:9000/login
   s3:
-    bucket-name: ${BUCKET_NAME}
-    access-key: ${BUCKET_ACCESS_KEY}
-    secret-key: ${BUCKET_SECRET_KEY}
-    base-url: ${BUCKET_ENDPOINT}
-    region: ${BUCKET_REGION}
+    bucket-name: ${BUCKET_NAME:${bucket_name}}
+    access-key: ${BUCKET_ACCESS_KEY:${bucket_access_key}}
+    secret-key: ${BUCKET_SECRET_KEY:${bucket_secret_key}}
+    base-url: ${BUCKET_ENDPOINT:${bucket_endpoint}}
+    region: ${AWS_REGION}
     storage-class: STANDARD
