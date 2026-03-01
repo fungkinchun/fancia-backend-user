@@ -3,9 +3,8 @@ server:
 spring:
   config:
     import:
-      - optional:file:.env[.properties]
-      - aws-secretsmanager:${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/smtp
-      - aws-secretsmanager:${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/s3
+      - aws-secretsmanager:/${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/smtp
+      - aws-secretsmanager:/${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/s3
   security:
     oauth2:
       resourceserver:
