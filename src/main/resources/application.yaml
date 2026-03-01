@@ -12,9 +12,9 @@ spring:
           issuer-uri:
             http://localhost:9000
   datasource:
-    url: ${DATABASE_URL:${database_url}}
-    username: ${DATABASE_USERNAME:${AWS_RDS_SECRET_NAME:${database_username}}}
-    password: ${DATABASE_PASSWORD:${database_password}}
+    url: ${DATABASE_URL}
+    username: ${AWS_RDS_SECRET_NAME:${DATABASE_USERNAME}}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: ${DATABASE_DRIVER:com.amazonaws.secretsmanager.sql.AWSSecretsManagerPostgreSQLDriver}
   jpa:
     properties:
@@ -25,8 +25,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${SMTP_USERNAME:${smtp_username}}
-    password: ${SMTP_PASSWORD:${smtp_password}}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
     properties:
       mail:
         smtp:
@@ -41,9 +41,9 @@ app:
   base-url: http://localhost:8081
   login-page-url: http://localhost:9000/login
   s3:
-    bucket-name: ${BUCKET_NAME:${bucket_name}}
-    access-key: ${BUCKET_ACCESS_KEY:${bucket_access_key}}
-    secret-key: ${BUCKET_SECRET_KEY:${bucket_secret_key}}
-    base-url: ${BUCKET_ENDPOINT:${bucket_endpoint}}
+    bucket-name: ${BUCKET_NAME}
+    access-key: ${BUCKET_ACCESS_KEY}
+    secret-key: ${BUCKET_SECRET_KEY}
+    base-url: ${BUCKET_ENDPOINT}
     region: ${AWS_REGION}
     storage-class: STANDARD
