@@ -58,6 +58,7 @@ dependencies {
     implementation("org.apache.commons:commons-lang3:3.18.0")
     implementation("commons-io:commons-io:2.20.0")
     implementation("software.amazon.awssdk:s3:2.24.9")
+    implementation("software.amazon.awssdk:sts")
     implementation("io.awspring.cloud:spring-cloud-aws-starter-secrets-manager:4.0.0")
     implementation("com.amazonaws.secretsmanager:aws-secretsmanager-jdbc:2.0.4")
     implementation("com.fancia.backend.shared:common:0.0.1-SNAPSHOT")
