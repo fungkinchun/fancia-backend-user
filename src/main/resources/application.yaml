@@ -4,6 +4,8 @@ spring:
   config:
     import:
       - optional:file:.env[.properties]
+      - aws-secretsmanager:${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/smtp
+      - aws-secretsmanager:${ENV}/${PROJECT_NAME}-backend-${REPO_NAME}/s3
   security:
     oauth2:
       resourceserver:
@@ -12,7 +14,7 @@ spring:
             http://localhost:9000
   datasource:
     url: ${DATABASE_URL:${database_url}}
-    username: ${DATABASE_USERNAME:${database_username}}
+    username: ${DATABASE_USERNAME:${AWS_RDS_SECRET_NAME:${database_username}}}
     password: ${DATABASE_PASSWORD:${database_password}}
     driver-class-name: ${DATABASE_DRIVER:com.amazonaws.secretsmanager.sql.AWSSecretsManagerPostgreSQLDriver}
   jpa:
