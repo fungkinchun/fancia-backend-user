@@ -1,0 +1,336 @@
+package com.fancia.backend.user.core.service
+
+import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
+import com.fancia.backend.shared.common.tag.core.dto.CreateTagsRequest
+import com.fancia.backend.shared.common.tag.core.dto.TagItemRequest
+import com.fancia.backend.shared.interestgroup.core.enums.InterestGroupRole
+import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
+import com.fancia.backend.shared.user.core.dto.*
+import com.fancia.backend.shared.user.core.entity.PasswordResetToken
+import com.fancia.backend.shared.user.core.entity.User
+import com.fancia.backend.shared.user.core.entity.UserSettings
+import com.fancia.backend.shared.user.core.entity.VerificationCode
+import com.fancia.backend.shared.user.core.enums.AccountStatus
+import com.fancia.backend.shared.user.core.enums.ProfileVisibility
+import com.fancia.backend.shared.user.core.exception.*
+import com.fancia.backend.user.config.ApplicationProperties
+import com.fancia.backend.user.core.event.PasswordResetTokenCreatedEvent
+import com.fancia.backend.user.core.event.UserCreatedEvent
+import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
+import com.fancia.backend.user.core.job.SendWelcomeEmailJob
+import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
+import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.user.core.repository.VerificationCodeRepository
+import com.fancia.backend.user.core.support.SmartMatchUserPreferences
+import com.fancia.backend.user.core.support.SmartMatchUserRanker
+import com.fancia.backend.user.external.CommonServiceClient
+import com.fancia.backend.user.external.InterestGroupServiceClient
+import com.fancia.backend.user.mapper.toDto
+import com.fancia.backend.user.mapper.toEntity
+import jakarta.validation.Valid
+import org.springframework.context.ApplicationEventPublisher
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
+import java.util.*
+
+@Service
+class UserService(
+    private val userRepository: UserRepository,
+    private val verificationCodeRepository: VerificationCodeRepository,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val passwordEncoder: PasswordEncoder,
+    private val fileUploadService: FileStorageService,
+    private val applicationEventPublisher: ApplicationEventPublisher,
+    private val interestGroupServiceClient: InterestGroupServiceClient,
+    private val commonServiceClient: CommonServiceClient,
+    private val applicationProperties: ApplicationProperties,
+    private val smartMatchUserRanker: SmartMatchUserRanker,
+) {
+    fun findByEmail(email: String): UserResponse? {
+        val user = userRepository.findByEmail(email)
+            ?: throw UserWithEmailNotFoundException(email)
+
+        return redactPrivateFields(user.toDto())
+    }
+
+    fun getCurrentUser(jwt: Jwt): UserResponse {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val user = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        return user.toDto()
+    }
+
+    fun findById(id: UUID): UserResponse? {
+        val user = userRepository.findById(id).orElse(null) ?: return null
+        return redactPrivateFields(user.toDto())
+    }
+
+    private fun redactPrivateFields(response: UserResponse): UserResponse {
+        if (response.visibility == ProfileVisibility.PRIVATE) {
+            return UserResponse(
+                id = response.id,
+                firstName = "",
+                lastName = "",
+                profileImageUrl = response.profileImageUrl,
+                visibility = ProfileVisibility.PRIVATE,
+            )
+        }
+        response.notifications = UserNotificationSettings()
+        val privacy = response.privacy
+        if (privacy.showGender == false) {
+            response.gender = null
+        }
+        if (privacy.showBirthday == false) {
+            response.birthDate = null
+        }
+        if (privacy.showInterests == false) {
+            response.tags = emptySet()
+            response.blacklistedIds = emptySet()
+        }
+        return response
+    }
+
+    @Transactional
+    fun create(request: @Valid CreateUserRequest): UserResponse {
+        val user = request.toEntity()
+        user.setPassword(
+            passwordEncoder.encode(user.password) ?: throw InvalidPasswordException()
+        )
+        userRepository.save(user)
+        verificationCodeRepository.save(VerificationCode(user))
+        user.id?.let {
+            applicationEventPublisher.publishEvent(UserCreatedEvent(it))
+        }
+        return user.toDto()
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun sendVerificationEmail(event: UserCreatedEvent) {
+        val user =
+            userRepository.findById(event.id).orElseThrow { UserWithIdNotFoundException(event.id.toString()) }
+        user.id?.let {
+            SendWelcomeEmailJob.scheduleJob(it)
+        }
+    }
+
+    @Transactional
+    fun verifyEmail(code: String) {
+        val verificationCode = verificationCodeRepository.findByCode(code)
+            ?: throw InvalidVerificationCodeException()
+        verificationCode.user?.apply {
+            status = AccountStatus.ACTIVE
+            userRepository.save(this)
+        }
+        verificationCodeRepository.delete(verificationCode)
+    }
+
+    @Transactional
+    fun forgotPassword(email: String) {
+        val user = userRepository.findByEmail(email)
+            ?: throw UserWithEmailNotFoundException(email)
+        val passwordResetToken = PasswordResetToken(user)
+        passwordResetTokenRepository.save(passwordResetToken)
+        passwordResetToken.id?.let {
+            applicationEventPublisher.publishEvent(PasswordResetTokenCreatedEvent(it))
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun sendResetPasswordEmail(event: PasswordResetTokenCreatedEvent) {
+        val passwordResetToken =
+            passwordResetTokenRepository.findById(event.id)
+                .orElseThrow { PasswordResetTokenNotFoundException(event.id.toString()) }
+        passwordResetToken.id?.let {
+            SendResetPasswordEmailJob.scheduleJob(it)
+        }
+    }
+
+    @Transactional
+    fun resetPassword(request: UpdateUserPasswordRequest) {
+        request.passwordResetToken?.let {
+            val passwordResetToken = passwordResetTokenRepository.findByToken(it)
+                ?: throw PasswordResetTokenNotFoundException()
+
+            if (passwordResetToken.isExpired) {
+                throw PasswordResetTokenExpiredException()
+            }
+
+            passwordResetToken.user?.let { user ->
+                passwordEncoder.encode(request.password)?.let {
+                    user.setPassword(it)
+                    userRepository.save(user)
+                } ?: throw InvalidPasswordResetTokenException()
+            } ?: throw UserNotFoundException()
+        } ?: throw InvalidPasswordResetTokenException()
+    }
+
+    @Transactional
+    fun update(request: UpdateUserRequest, jwt: Jwt): UserResponse {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val user = userRepository.findById(currentUserId).orElseThrow()
+        return request.toEntity(user).let {
+            request.tags?.let { tags -> applyTags(it.tags, tags) }
+            request.blacklistTags?.let { tags -> applyBlacklistTags(it.blacklistedIds, tags) }
+            applyDeviceSettings(it, request)
+            request.profileImageKey?.let { profileImageKey ->
+                val fileName = profileImageKey.removePrefix("tmp/")
+                val destinationPath = "user/${currentUserId}/profile-picture/$fileName"
+                fileUploadService.moveFile(profileImageKey, destinationPath)
+                it.profileImageUrl = "${applicationProperties.cdnUrl}/${destinationPath}"
+            } ?: it.apply {
+                profileImageUrl = null
+            }
+            userRepository.save(it).toDto()
+        }
+    }
+
+    @Transactional
+    fun updateSettings(request: UpdateUserSettingsRequest, jwt: Jwt): UserResponse {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val user = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        val settings = ensureUserSettings(user)
+        request.toEntity(user, settings)
+        return userRepository.save(user).toDto()
+    }
+
+    @Transactional
+    fun removeTagFromAllUsers(tagId: UUID) {
+        val usersWithTag = userRepository.findByTagId(tagId)
+        for (user in usersWithTag) {
+            user.tags.remove(tagId)
+        }
+        if (usersWithTag.isNotEmpty()) {
+            userRepository.saveAll(usersWithTag)
+        }
+    }
+
+    private fun ensureUserSettings(user: User): UserSettings {
+        val existing = user.settings
+        if (existing != null) {
+            return existing
+        }
+        val settings = UserSettings().apply {
+            userId = user.id
+            this.user = user
+        }
+        user.settings = settings
+        return settings
+    }
+
+    @Transactional
+    fun updatePassword(request: UpdateUserPasswordRequest, jwt: Jwt): UserResponse {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val user = userRepository.findById(currentUserId)
+            .orElseThrow { UserNotFoundException() }
+
+        if (user.password != null && !passwordEncoder.matches(request.oldPassword, user.password)) {
+            throw InvalidAuthenticationException()
+        }
+        passwordEncoder.encode(request.password)?.let {
+            user.setPassword(it)
+        }
+        return userRepository.save(user).toDto()
+    }
+
+    @Transactional
+    fun deleteUser(jwt: Jwt, forceDeleted: Boolean = false): UUID {
+        val requestId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val user = userRepository.findById(requestId)
+            .orElseThrow { UserNotFoundException() }
+        val memberships = interestGroupServiceClient.getInterestGroupMembership(requestId, InterestGroupRole.ADMIN)
+        if (!forceDeleted) {
+            if (!memberships.isEmpty) throw UserIsStillGroupAdminException(
+                requestId.toString(),
+                groupIds = memberships.content.map { it.interestGroupId.toString() }
+            )
+        }
+        userRepository.delete(user)
+        return requestId
+    }
+
+    fun smartMatch(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        val preferences = SmartMatchUserPreferences(
+            tagIds = currentUser.tags,
+            blacklistedIds = currentUser.blacklistedIds,
+            locationLabel = currentUser.locationLabel,
+        )
+        val fetchSize = maxOf(pageable.pageSize * 10, 200)
+        val candidates = findSmartMatchUserCandidates(currentUserId, preferences, fetchSize)
+        val ranked = smartMatchUserRanker.rank(candidates, preferences, currentUserId)
+        val pageContent = ranked
+            .drop(pageable.offset.toInt())
+            .take(pageable.pageSize)
+            .map { rankedUser -> redactPrivateFields(rankedUser.user.toDto()) }
+
+        return PageImpl(pageContent, pageable, ranked.size.toLong())
+    }
+
+    private fun findSmartMatchUserCandidates(
+        currentUserId: UUID,
+        preferences: SmartMatchUserPreferences,
+        fetchSize: Int,
+    ): List<User> {
+        val visibility = ProfileVisibility.PUBLIC
+        val status = AccountStatus.ACTIVE
+        if (preferences.tagIds.isEmpty()) {
+            return userRepository.findPublicActiveUsersExcluding(currentUserId, visibility, status)
+                .take(fetchSize)
+        }
+        val expandedTagIds = smartMatchUserRanker.expandTagWeights(preferences).keys
+        val tagFilter = if (expandedTagIds.isEmpty()) preferences.tagIds else expandedTagIds
+        val tagged = userRepository.findPublicActiveUsersWithSharedTags(
+            tagFilter,
+            currentUserId,
+            visibility,
+            status,
+        )
+        return tagged.take(fetchSize)
+    }
+
+    private fun applyDeviceSettings(user: User, request: UpdateUserRequest) {
+        if (request.fcmToken == null && request.deviceType == null && request.deviceId == null) {
+            return
+        }
+        val settings = ensureUserSettings(user)
+        val current = settings.notifications
+        settings.notifications = current.copy(
+            fcmToken = request.fcmToken ?: current.fcmToken,
+            deviceType = request.deviceType ?: current.deviceType,
+            deviceId = request.deviceId ?: current.deviceId,
+        )
+    }
+
+    private fun applyTags(tags: MutableSet<UUID>, requestTags: Set<TagItemRequest>) {
+        tags.clear()
+        if (requestTags.isEmpty()) return
+        val resolved = commonServiceClient.createTags(
+            CreateTagsRequest(tags = requestTags.toList()),
+            size = requestTags.size,
+        ).content.mapNotNull { it.id }
+        tags.addAll(resolved)
+    }
+
+    private fun applyBlacklistTags(blacklistedIds: MutableSet<UUID>, requestTags: Set<TagItemRequest>) {
+        blacklistedIds.clear()
+        if (requestTags.isEmpty()) return
+        val resolved = commonServiceClient.createTags(
+            CreateTagsRequest(tags = requestTags.toList()),
+            size = requestTags.size,
+        ).content.mapNotNull { it.id }
+        blacklistedIds.addAll(resolved)
+    }
+}
