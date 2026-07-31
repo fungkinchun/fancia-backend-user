@@ -4,7 +4,9 @@ import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationExce
 import com.fancia.backend.shared.common.tag.core.dto.CreateTagsRequest
 import com.fancia.backend.shared.common.tag.core.dto.TagItemRequest
 import com.fancia.backend.shared.interestgroup.core.enums.InterestGroupRole
+import com.fancia.backend.shared.upload.storage.core.enums.UploadScope
 import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
+import com.fancia.backend.shared.upload.storage.core.service.moveTmpToDedicatedPath
 import com.fancia.backend.shared.user.core.dto.*
 import com.fancia.backend.shared.user.core.entity.PasswordResetToken
 import com.fancia.backend.shared.user.core.entity.User
@@ -181,10 +183,12 @@ class UserService(
             request.blacklistTags?.let { tags -> applyBlacklistTags(it.blacklistedIds, tags) }
             applyDeviceSettings(it, request)
             request.profileImageKey?.let { profileImageKey ->
-                val fileName = profileImageKey.removePrefix("tmp/")
-                val destinationPath = "user/${currentUserId}/profile-picture/$fileName"
-                fileUploadService.moveFile(profileImageKey, destinationPath)
-                it.profileImageUrl = "${applicationProperties.cdnUrl}/${destinationPath}"
+                val destinationPath = fileUploadService.moveTmpToDedicatedPath(
+                    profileImageKey,
+                    UploadScope.USER,
+                    currentUserId,
+                )
+                it.profileImageUrl = "${applicationProperties.cdnUrl}/$destinationPath"
             } ?: it.apply {
                 profileImageUrl = null
             }
@@ -291,7 +295,7 @@ class UserService(
                 .take(fetchSize)
         }
         val expandedTagIds = smartMatchUserRanker.expandTagWeights(preferences).keys
-        val tagFilter = if (expandedTagIds.isEmpty()) preferences.tagIds else expandedTagIds
+        val tagFilter = expandedTagIds.ifEmpty { preferences.tagIds }
         val tagged = userRepository.findPublicActiveUsersWithSharedTags(
             tagFilter,
             currentUserId,
