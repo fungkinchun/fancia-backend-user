@@ -3,8 +3,12 @@ package com.fancia.backend.user.core.service
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
 import com.fancia.backend.shared.common.post.core.dto.CreatePostBody
 import com.fancia.backend.shared.common.post.core.dto.CreatePostRequest
+import com.fancia.backend.shared.common.post.core.dto.PostMediaItem
 import com.fancia.backend.shared.common.post.core.dto.PostResponse
 import com.fancia.backend.shared.common.post.core.dto.UpdatePostRequest
+import com.fancia.backend.shared.upload.storage.core.enums.UploadScope
+import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
+import com.fancia.backend.shared.upload.storage.core.service.moveTmpToDedicatedPath
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.external.CommonInternalClient
@@ -18,10 +22,14 @@ import java.util.*
 class UserPostService(
     private val userRepository: UserRepository,
     private val commonInternalClient: CommonInternalClient,
+    private val fileUploadService: FileStorageService,
 ) {
     fun create(userId: UUID, request: CreatePostBody, jwt: Jwt): PostResponse {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
+        if (currentUserId != userId) {
+            throw InvalidAuthenticationException()
+        }
         if (!userRepository.existsById(userId)) {
             throw UserNotFoundException()
         }
@@ -30,7 +38,7 @@ class UserPostService(
                 targetId = userId,
                 authorUserId = currentUserId,
                 body = request.body,
-                media = request.media,
+                media = dedicateMedia(request.media, userId),
                 featured = request.featured,
                 pinned = request.pinned,
             )
@@ -43,12 +51,16 @@ class UserPostService(
         request: UpdatePostRequest,
         jwt: Jwt,
     ): PostResponse {
-        jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
+        if (currentUserId != userId) {
+            throw InvalidAuthenticationException()
+        }
         if (!userRepository.existsById(userId)) {
             throw UserNotFoundException()
         }
-        val post = commonInternalClient.updatePost(postId, request)
+        val scopedRequest = request.copy(media = dedicateMedia(request.media, userId))
+        val post = commonInternalClient.updatePost(postId, scopedRequest)
         if (post.targetId != userId) {
             throw UserNotFoundException()
         }
@@ -86,4 +98,15 @@ class UserPostService(
         }
         return post
     }
+
+    private fun dedicateMedia(media: List<PostMediaItem>, userId: UUID): List<PostMediaItem> =
+        media.map { item ->
+            item.copy(
+                objectKey = fileUploadService.moveTmpToDedicatedPath(
+                    item.objectKey,
+                    UploadScope.USER,
+                    userId,
+                ),
+            )
+        }
 }
