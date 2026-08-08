@@ -74,6 +74,14 @@ class UserService(
         return redactPrivateFields(user.toDto())
     }
 
+    @Transactional
+    fun updatePremiumStatus(id: UUID, request: UpdatePremiumStatusRequest): UserResponse {
+        val user = userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }
+        user.premiumActive = request.premiumActive
+        user.premiumExpiresAt = request.premiumExpiresAt
+        return userRepository.save(user).toDto()
+    }
+
     private fun redactPrivateFields(response: UserResponse): UserResponse {
         if (response.visibility == ProfileVisibility.PRIVATE) {
             return UserResponse(

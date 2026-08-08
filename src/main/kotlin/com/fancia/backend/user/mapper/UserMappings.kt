@@ -28,6 +28,8 @@ fun User.toDto(): UserResponse =
         connectedAccounts = connectedAccounts.mapNotNull { it?.toDto() }.toMutableList(),
         authorities = authorities.mapNotNull { it.authority }.toMutableList(),
         links = links.map { it.toDto() }.toSet(),
+        premiumActive = premiumActive,
+        premiumExpiresAt = premiumExpiresAt,
     )
 
 fun CreateUserRequest.toEntity(): User =
