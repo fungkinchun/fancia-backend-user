@@ -7,7 +7,13 @@ import com.fancia.backend.shared.interestgroup.core.enums.InterestGroupRole
 import com.fancia.backend.shared.upload.storage.core.enums.UploadScope
 import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
 import com.fancia.backend.shared.upload.storage.core.service.moveTmpToDedicatedPath
-import com.fancia.backend.shared.user.core.dto.*
+import com.fancia.backend.shared.user.core.dto.CreateUserRequest
+import com.fancia.backend.shared.user.core.dto.UpdatePremiumStatusRequest
+import com.fancia.backend.shared.user.core.dto.UpdateUserPasswordRequest
+import com.fancia.backend.shared.user.core.dto.UpdateUserRequest
+import com.fancia.backend.shared.user.core.dto.UpdateUserSettingsRequest
+import com.fancia.backend.shared.user.core.dto.UserResponse
+import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.entity.PasswordResetToken
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.entity.UserSettings
@@ -59,7 +65,7 @@ class UserService(
         val user = userRepository.findByEmail(email)
             ?: throw UserWithEmailNotFoundException(email)
 
-        return redactPrivateFields(user.toDto())
+        return redactForPublicView(user.toDto())
     }
 
     fun getCurrentUser(jwt: Jwt): UserResponse {
@@ -71,7 +77,7 @@ class UserService(
 
     fun findById(id: UUID): UserResponse? {
         val user = userRepository.findById(id).orElse(null) ?: return null
-        return redactPrivateFields(user.toDto())
+        return redactForPublicView(user.toDto())
     }
 
     @Transactional
@@ -80,31 +86,6 @@ class UserService(
         user.premiumActive = request.premiumActive
         user.premiumExpiresAt = request.premiumExpiresAt
         return userRepository.save(user).toDto()
-    }
-
-    private fun redactPrivateFields(response: UserResponse): UserResponse {
-        if (response.visibility == ProfileVisibility.PRIVATE) {
-            return UserResponse(
-                id = response.id,
-                firstName = "",
-                lastName = "",
-                profileImageUrl = response.profileImageUrl,
-                visibility = ProfileVisibility.PRIVATE,
-            )
-        }
-        response.notifications = UserNotificationSettings()
-        val privacy = response.privacy
-        if (privacy.showGender == false) {
-            response.gender = null
-        }
-        if (privacy.showBirthday == false) {
-            response.birthDate = null
-        }
-        if (privacy.showInterests == false) {
-            response.tags = emptySet()
-            response.blacklistedIds = emptySet()
-        }
-        return response
     }
 
     @Transactional
@@ -286,7 +267,7 @@ class UserService(
         val pageContent = ranked
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { rankedUser -> redactPrivateFields(rankedUser.user.toDto()) }
+            .map { rankedUser -> redactForPublicView(rankedUser.user.toDto()) }
 
         return PageImpl(pageContent, pageable, ranked.size.toLong())
     }
