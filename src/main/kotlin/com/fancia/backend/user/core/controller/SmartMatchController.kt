@@ -32,7 +32,8 @@ class SmartMatchController(
     @GetMapping
     @Operation(
         summary = "Match people by shared interests",
-        description = "Returns public active users ranked by interest overlap, similar tags, location, and blacklist preferences.",
+        description = "Returns the precomputed Smart Match deck (unseen batch rows) for the current user, " +
+            "falling back to live ranking when no batch exists yet.",
     )
     @ApiResponses(
         value = [

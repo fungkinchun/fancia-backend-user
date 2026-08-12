@@ -338,10 +338,10 @@ class SmartMatchControllerIntegrationTest(
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.userId", `is`(matchedUser.id.toString()))
-                jsonPath("$.createdBy", `is`(currentUser.id.toString()))
-                jsonPath("$.matchedByCreatedBy", `is`(true))
-                jsonPath("$.matchedByUser", `is`(false))
+                jsonPath("$.userId", `is`(currentUser.id.toString()))
+                jsonPath("$.targetId", `is`(matchedUser.id.toString()))
+                jsonPath("$.userIdFlag", `is`(true))
+                jsonPath("$.targetIdFlag", nullValue())
             }
             .toSmartMatchResponse(jsonMapper)
 
@@ -349,15 +349,15 @@ class SmartMatchControllerIntegrationTest(
             .patch("/api/smart-match/${createResponse.id}") {
                 with(jwtFor(matchedUser.id!!))
                 content = jsonMapper.writeValueAsString(
-                    mapOf("matchedByUser" to true),
+                    mapOf("targetIdFlag" to true),
                 )
                 contentType = APPLICATION_JSON
                 accept = APPLICATION_JSON
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.matchedByUser", `is`(true))
-                jsonPath("$.matchedByCreatedBy", `is`(true))
+                jsonPath("$.targetIdFlag", `is`(true))
+                jsonPath("$.userIdFlag", `is`(true))
             }
     }
 

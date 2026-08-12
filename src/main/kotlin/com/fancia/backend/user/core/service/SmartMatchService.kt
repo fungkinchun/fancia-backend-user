@@ -13,6 +13,7 @@ import jakarta.validation.Valid
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDateTime
 import java.util.*
 
 @Service
@@ -24,21 +25,51 @@ class SmartMatchService(
     @Transactional
     fun create(request: @Valid CreateSmartMatchRequest, jwt: Jwt): SmartMatchResponse {
         val currentUserId = currentUserId(jwt)
-        if (currentUserId == request.userId) {
+        val targetId = request.userId
+        if (currentUserId == targetId) {
             throw SmartMatchSelfMatchException()
         }
-        userRepository.findById(request.userId).orElseThrow { UserNotFoundException() }
-        if (smartMatchRepository.existsByCreatedByAndUserId(currentUserId, request.userId)) {
-            throw SmartMatchAlreadyExistsException(request.userId)
+        userRepository.findById(targetId).orElseThrow { UserNotFoundException() }
+
+        val asOwner = smartMatchRepository.findByUserIdAndTargetId(currentUserId, targetId)
+        if (asOwner != null) {
+            val previous = asOwner.userIdFlag
+            if (asOwner.userIdFlag != true) {
+                asOwner.userIdFlag = true
+                asOwner.userIdFlagAt = LocalDateTime.now()
+            }
+            val saved = smartMatchRepository.save(asOwner)
+            if (previous != true) {
+                notifyMatchedUser(targetId, currentUserId)
+            }
+            return saved.toDto()
         }
+
+        val asTarget = smartMatchRepository.findByUserIdAndTargetId(targetId, currentUserId)
+        if (asTarget != null) {
+            val previous = asTarget.targetIdFlag
+            if (asTarget.targetIdFlag != true) {
+                asTarget.targetIdFlag = true
+                asTarget.targetIdFlagAt = LocalDateTime.now()
+            }
+            val saved = smartMatchRepository.save(asTarget)
+            if (previous != true) {
+                notifyMatchedUser(targetId, currentUserId)
+            }
+            return saved.toDto()
+        }
+
         val smartMatch = SmartMatch().apply {
             createdBy = currentUserId
-            userId = request.userId
-            matchedByCreatedBy = true
-            matchedByUser = false
+            userId = currentUserId
+            this.targetId = targetId
+            userIdFlag = true
+            userIdFlagAt = LocalDateTime.now()
+            targetIdFlag = null
+            targetIdFlagAt = null
         }
         val saved = smartMatchRepository.save(smartMatch)
-        notifyMatchedUser(request.userId, currentUserId)
+        notifyMatchedUser(targetId, currentUserId)
         return saved.toDto()
     }
 
@@ -46,30 +77,39 @@ class SmartMatchService(
     fun update(id: UUID, request: @Valid UpdateSmartMatchRequest, jwt: Jwt): SmartMatchResponse {
         val currentUserId = currentUserId(jwt)
         val smartMatch = smartMatchRepository.findById(id).orElseThrow { SmartMatchNotFoundException(id) }
-        val createdBy = smartMatch.createdBy ?: throw SmartMatchAccessDeniedException()
-        val matchedUserId = smartMatch.userId ?: throw SmartMatchNotFoundException(id)
-        val previousMatchedByUser = smartMatch.matchedByUser
-        val previousMatchedByCreatedBy = smartMatch.matchedByCreatedBy
+        val ownerId = smartMatch.userId ?: throw SmartMatchNotFoundException(id)
+        val matchedTargetId = smartMatch.targetId ?: throw SmartMatchNotFoundException(id)
 
-        request.matchedByUser?.let { value ->
-            if (currentUserId != matchedUserId) {
+        val previousUserIdFlag = smartMatch.userIdFlag
+        val previousTargetIdFlag = smartMatch.targetIdFlag
+        val now = LocalDateTime.now()
+
+        request.resolvedUserIdFlag()?.let { value ->
+            if (currentUserId != ownerId) {
                 throw SmartMatchAccessDeniedException()
             }
-            smartMatch.matchedByUser = value
+            if (smartMatch.userIdFlag != value) {
+                smartMatch.userIdFlag = value
+                smartMatch.userIdFlagAt = now
+            }
         }
-        request.matchedByCreatedBy?.let { value ->
-            if (currentUserId != createdBy) {
+        request.resolvedTargetIdFlag()?.let { value ->
+            if (currentUserId != matchedTargetId) {
                 throw SmartMatchAccessDeniedException()
             }
-            smartMatch.matchedByCreatedBy = value
+            if (smartMatch.targetIdFlag != value) {
+                smartMatch.targetIdFlag = value
+                smartMatch.targetIdFlagAt = now
+            }
         }
+
         val saved = smartMatchRepository.save(smartMatch)
 
-        if (!previousMatchedByUser && saved.matchedByUser) {
-            notifyCreator(createdBy, matchedUserId)
+        if (previousUserIdFlag != true && saved.userIdFlag == true) {
+            notifyMatchedUser(matchedTargetId, ownerId)
         }
-        if (!previousMatchedByCreatedBy && saved.matchedByCreatedBy) {
-            notifyMatchedUser(matchedUserId, createdBy)
+        if (previousTargetIdFlag != true && saved.targetIdFlag == true) {
+            notifyCreator(ownerId, matchedTargetId)
         }
 
         return saved.toDto()

@@ -19,7 +19,6 @@ import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.entity.VerificationCode
 import com.fancia.backend.shared.user.core.enums.AccountStatus
-import com.fancia.backend.shared.user.core.enums.ProfileVisibility
 import com.fancia.backend.shared.user.core.exception.*
 import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.core.event.PasswordResetTokenCreatedEvent
@@ -27,10 +26,9 @@ import com.fancia.backend.user.core.event.UserCreatedEvent
 import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
 import com.fancia.backend.user.core.job.SendWelcomeEmailJob
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
+import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
-import com.fancia.backend.user.core.support.SmartMatchUserPreferences
-import com.fancia.backend.user.core.support.SmartMatchUserRanker
 import com.fancia.backend.user.external.CommonServiceClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import com.fancia.backend.user.mapper.toDto
@@ -59,7 +57,7 @@ class UserService(
     private val interestGroupServiceClient: InterestGroupServiceClient,
     private val commonServiceClient: CommonServiceClient,
     private val applicationProperties: ApplicationProperties,
-    private val smartMatchUserRanker: SmartMatchUserRanker,
+    private val smartMatchRepository: SmartMatchRepository,
 ) {
     fun findByEmail(email: String): UserResponse? {
         val user = userRepository.findByEmail(email)
@@ -255,43 +253,21 @@ class UserService(
     fun smartMatch(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
-        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
-        val preferences = SmartMatchUserPreferences(
-            tagIds = currentUser.tags,
-            blacklistedIds = currentUser.blacklistedIds,
-            locationLabel = currentUser.locationLabel,
-        )
-        val fetchSize = maxOf(pageable.pageSize * 10, 200)
-        val candidates = findSmartMatchUserCandidates(currentUserId, preferences, fetchSize)
-        val ranked = smartMatchUserRanker.rank(candidates, preferences, currentUserId)
-        val pageContent = ranked
+        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+
+        val batchRows = smartMatchRepository.findByUserIdAndUserIdFlagIsNullOrderByRankAsc(currentUserId)
+        if (batchRows.isEmpty()) {
+            return PageImpl(emptyList(), pageable, 0)
+        }
+
+        val targetIds = batchRows.mapNotNull { it.targetId }
+        val usersById = userRepository.findAllById(targetIds).filter { it.id != null }.associateBy { it.id!! }
+        val ordered = targetIds.mapNotNull { usersById[it] }
+        val pageContent = ordered
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { rankedUser -> rankedUser.user.toDto().redactForPublicView() }
-
-        return PageImpl(pageContent, pageable, ranked.size.toLong())
-    }
-
-    private fun findSmartMatchUserCandidates(
-        currentUserId: UUID,
-        preferences: SmartMatchUserPreferences,
-        fetchSize: Int,
-    ): List<User> {
-        val visibility = ProfileVisibility.PUBLIC
-        val status = AccountStatus.ACTIVE
-        if (preferences.tagIds.isEmpty()) {
-            return userRepository.findPublicActiveUsersExcluding(currentUserId, visibility, status)
-                .take(fetchSize)
-        }
-        val expandedTagIds = smartMatchUserRanker.expandTagWeights(preferences).keys
-        val tagFilter = expandedTagIds.ifEmpty { preferences.tagIds }
-        val tagged = userRepository.findPublicActiveUsersWithSharedTags(
-            tagFilter,
-            currentUserId,
-            visibility,
-            status,
-        )
-        return tagged.take(fetchSize)
+            .map { user -> user.toDto().redactForPublicView() }
+        return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
 
     private fun applyDeviceSettings(user: User, request: UpdateUserRequest) {

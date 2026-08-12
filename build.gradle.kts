@@ -90,6 +90,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.crac:crac:1.5.0")
     implementation("com.google.firebase:firebase-admin:9.4.3")
+    implementation("com.amazonaws:aws-lambda-java-core:1.2.3")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
