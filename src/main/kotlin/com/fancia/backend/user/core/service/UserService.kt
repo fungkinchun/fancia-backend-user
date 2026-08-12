@@ -65,7 +65,7 @@ class UserService(
         val user = userRepository.findByEmail(email)
             ?: throw UserWithEmailNotFoundException(email)
 
-        return redactForPublicView(user.toDto())
+        return user.toDto().redactForPublicView()
     }
 
     fun getCurrentUser(jwt: Jwt): UserResponse {
@@ -77,7 +77,7 @@ class UserService(
 
     fun findById(id: UUID): UserResponse? {
         val user = userRepository.findById(id).orElse(null) ?: return null
-        return redactForPublicView(user.toDto())
+        return user.toDto().redactForPublicView()
     }
 
     @Transactional
@@ -267,7 +267,7 @@ class UserService(
         val pageContent = ranked
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { rankedUser -> redactForPublicView(rankedUser.user.toDto()) }
+            .map { rankedUser -> rankedUser.user.toDto().redactForPublicView() }
 
         return PageImpl(pageContent, pageable, ranked.size.toLong())
     }
