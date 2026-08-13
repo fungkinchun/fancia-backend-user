@@ -2,8 +2,12 @@ package com.fancia.backend.user
 
 import com.fancia.backend.shared.user.core.dto.SmartMatchResponse
 import com.fancia.backend.shared.user.core.dto.UserResponse
+import com.fancia.backend.shared.user.core.dto.UserPrivacySettings
+import com.fancia.backend.shared.user.core.entity.SmartMatch
+import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
+import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import io.kotest.core.spec.style.FunSpec
@@ -31,6 +35,7 @@ import java.util.*
 class SmartMatchControllerIntegrationTest(
     private val mockMvc: MockMvc,
     private val userRepository: UserRepository,
+    private val smartMatchRepository: SmartMatchRepository,
     private val jsonMapper: JsonMapper,
     private val wiremock: WireMockContainer,
 ) : FunSpec({
@@ -46,6 +51,7 @@ class SmartMatchControllerIntegrationTest(
     beforeEach {
         reset()
         userRepository.deleteAll()
+        smartMatchRepository.deleteAll()
         tagRegistry.clear()
     }
 
@@ -79,6 +85,35 @@ class SmartMatchControllerIntegrationTest(
         val user = userRepository.findByIdOrNull(userId)!!
         user.status = AccountStatus.ACTIVE
         userRepository.save(user)
+    }
+
+    fun enableSmartMatch(userId: UUID) {
+        val user = userRepository.findByIdOrNull(userId)!!
+        user.status = AccountStatus.ACTIVE
+        user.visibility = ProfileVisibility.PUBLIC
+        val settings = user.settings ?: UserSettings().apply {
+            this.userId = userId
+            this.user = user
+        }
+        settings.privacy = settings.privacy.copy(smartMatchEnabled = true)
+        user.settings = settings
+        userRepository.save(user)
+    }
+
+    fun seedBatch(ownerId: UUID, targets: List<Pair<UUID, Int>>) {
+        targets.forEach { (targetId, rank) ->
+            smartMatchRepository.save(
+                SmartMatch().apply {
+                    createdBy = ownerId
+                    userId = ownerId
+                    this.targetId = targetId
+                    userIdFlag = null
+                    targetIdFlag = null
+                    this.rank = rank
+                    score = 1.0
+                },
+            )
+        }
     }
 
     fun stubCreateTags(tags: List<Pair<UUID, String>>, type: String = "INTEREST") {
@@ -182,10 +217,11 @@ class SmartMatchControllerIntegrationTest(
 
     test("should return browse pool when user has no interest tags") {
         val user = registerUser()
-        activateUser(user.id!!)
+        enableSmartMatch(user.id!!)
 
         val otherUser = registerUser(firstName = "Browse", lastName = "Pool")
-        activateUser(otherUser.id!!)
+        enableSmartMatch(otherUser.id!!)
+        seedBatch(user.id!!, listOf(otherUser.id!! to 1))
 
         mockMvc
             .get("/api/smart-match") {
@@ -205,21 +241,29 @@ class SmartMatchControllerIntegrationTest(
         val musicTagId = UUID.randomUUID()
 
         val currentUser = registerUser(firstName = "Current", lastName = "User")
-        activateUser(currentUser.id!!)
+        enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId, "music" to musicTagId))
 
         val bestMatch = registerUser(firstName = "Best", lastName = "Match")
-        activateUser(bestMatch.id!!)
+        enableSmartMatch(bestMatch.id!!)
         assignTags(bestMatch.id!!, listOf("hiking" to hikingTagId, "music" to musicTagId))
 
         val partialMatch = registerUser(firstName = "Partial", lastName = "Match")
-        activateUser(partialMatch.id!!)
+        enableSmartMatch(partialMatch.id!!)
         assignTags(partialMatch.id!!, listOf("hiking" to hikingTagId))
 
         val noMatch = registerUser(firstName = "No", lastName = "Match")
-        activateUser(noMatch.id!!)
+        enableSmartMatch(noMatch.id!!)
         val cookingTagId = UUID.randomUUID()
         assignTags(noMatch.id!!, listOf("cooking" to cookingTagId))
+
+        seedBatch(
+            currentUser.id!!,
+            listOf(
+                bestMatch.id!! to 1,
+                partialMatch.id!! to 2,
+            ),
+        )
 
         val response = mockMvc
             .get("/api/smart-match") {
@@ -244,7 +288,7 @@ class SmartMatchControllerIntegrationTest(
     test("should not include current user, private users, or inactive users") {
         val hikingTagId = UUID.randomUUID()
         val currentUser = registerUser(firstName = "Current", lastName = "User")
-        activateUser(currentUser.id!!)
+        enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId))
 
         val privateUser = registerUser(firstName = "Private", lastName = "User")
@@ -258,8 +302,16 @@ class SmartMatchControllerIntegrationTest(
         assignTags(inactiveUser.id!!, listOf("hiking" to hikingTagId))
 
         val visibleMatch = registerUser(firstName = "Visible", lastName = "Match")
-        activateUser(visibleMatch.id!!)
+        enableSmartMatch(visibleMatch.id!!)
         assignTags(visibleMatch.id!!, listOf("hiking" to hikingTagId))
+
+        seedBatch(
+            currentUser.id!!,
+            listOf(
+                privateUser.id!! to 1,
+                visibleMatch.id!! to 2,
+            ),
+        )
 
         mockMvc
             .get("/api/smart-match") {
@@ -276,12 +328,13 @@ class SmartMatchControllerIntegrationTest(
     test("should hide interests when showInterests privacy is disabled") {
         val hikingTagId = UUID.randomUUID()
         val currentUser = registerUser(firstName = "Current", lastName = "User")
-        activateUser(currentUser.id!!)
+        enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId))
 
         val matchedUser = registerUser(firstName = "Hidden", lastName = "Interests")
-        activateUser(matchedUser.id!!)
+        enableSmartMatch(matchedUser.id!!)
         assignTags(matchedUser.id!!, listOf("hiking" to hikingTagId))
+        seedBatch(currentUser.id!!, listOf(matchedUser.id!! to 1))
 
         mockMvc
             .patch("/api/users/settings") {
@@ -320,11 +373,11 @@ class SmartMatchControllerIntegrationTest(
     test("should create and update smart match") {
         val hikingTagId = UUID.randomUUID()
         val currentUser = registerUser(firstName = "Matcher", lastName = "One")
-        activateUser(currentUser.id!!)
+        enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId))
 
         val matchedUser = registerUser(firstName = "Matcher", lastName = "Two")
-        activateUser(matchedUser.id!!)
+        enableSmartMatch(matchedUser.id!!)
         assignTags(matchedUser.id!!, listOf("hiking" to hikingTagId))
 
         val createResponse = mockMvc
@@ -362,6 +415,7 @@ class SmartMatchControllerIntegrationTest(
     }
 
     afterSpec {
+        smartMatchRepository.deleteAll()
         userRepository.deleteAll()
     }
 })

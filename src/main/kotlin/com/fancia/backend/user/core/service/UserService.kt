@@ -26,6 +26,7 @@ import com.fancia.backend.user.core.event.UserCreatedEvent
 import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
 import com.fancia.backend.user.core.job.SendWelcomeEmailJob
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
+import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
@@ -253,7 +254,10 @@ class UserService(
     fun smartMatch(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
-        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        if (!currentUser.smartMatchEligible()) {
+            return PageImpl(emptyList(), pageable, 0)
+        }
 
         val batchRows = smartMatchRepository.findByUserIdAndUserIdFlagIsNullOrderByRankAsc(currentUserId)
         if (batchRows.isEmpty()) {
@@ -261,7 +265,9 @@ class UserService(
         }
 
         val targetIds = batchRows.mapNotNull { it.targetId }
-        val usersById = userRepository.findAllById(targetIds).filter { it.id != null }.associateBy { it.id!! }
+        val usersById = userRepository.findAllById(targetIds)
+            .filter { it.id != null && it.smartMatchEligible() }
+            .associateBy { it.id!! }
         val ordered = targetIds.mapNotNull { usersById[it] }
         val pageContent = ordered
             .drop(pageable.offset.toInt())

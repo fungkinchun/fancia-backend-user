@@ -437,11 +437,14 @@ class UserControllerIntegrationTest(
             .andDo { print() }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.firstName", `is`(""))
-                jsonPath("$.lastName", `is`(""))
+                jsonPath("$.firstName", `is`("Hidden"))
+                jsonPath("$.lastName", `is`("User"))
+                jsonPath("$.bio", `is`("Secret bio"))
                 jsonPath("$.visibility", `is`("PRIVATE"))
-                jsonPath("$.bio", nullValue())
                 jsonPath("$.email", nullValue())
+                jsonPath("$.gender", nullValue())
+                jsonPath("$.birthDate", nullValue())
+                jsonPath("$.tags.length()", `is`(0))
             }
     }
 })

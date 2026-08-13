@@ -56,7 +56,18 @@ fun UpdateUserRequest.toEntity(user: User): User {
 
 fun UpdateUserSettingsRequest.toEntity(user: User, settings: UserSettings): User {
     visibility?.let { user.visibility = it }
-    privacy?.let { settings.privacy = it }
+    privacy?.let { incoming ->
+        val current = settings.privacy
+        settings.privacy = UserPrivacySettings(
+            allowFriendRequests = incoming.allowFriendRequests,
+            showGroups = incoming.showGroups,
+            showInterests = incoming.showInterests,
+            showEvents = incoming.showEvents,
+            showGender = incoming.showGender,
+            showBirthday = incoming.showBirthday,
+            smartMatchEnabled = incoming.smartMatchEnabled,
+        )
+    }
     notifications?.let { incoming ->
         val current = settings.notifications
         settings.notifications = UserNotificationSettings(
