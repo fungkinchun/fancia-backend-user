@@ -5,6 +5,7 @@ import com.fancia.backend.shared.user.core.dto.CreateSmartMatchRequest
 import com.fancia.backend.shared.user.core.dto.SmartMatchResponse
 import com.fancia.backend.shared.user.core.dto.UpdateSmartMatchRequest
 import com.fancia.backend.shared.user.core.entity.SmartMatch
+import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.*
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
@@ -33,29 +34,41 @@ class SmartMatchService(
 
         val asOwner = smartMatchRepository.findByUserIdAndTargetId(currentUserId, targetId)
         if (asOwner != null) {
-            val previous = asOwner.userIdFlag
+            val previousUserIdFlag = asOwner.userIdFlag
+            val previousTargetIdFlag = asOwner.targetIdFlag
             if (asOwner.userIdFlag != true) {
                 asOwner.userIdFlag = true
                 asOwner.userIdFlagAt = LocalDateTime.now()
             }
             val saved = smartMatchRepository.save(asOwner)
-            if (previous != true) {
-                notifyMatchedUser(targetId, currentUserId)
-            }
+            notifyAfterFlagsChanged(
+                ownerId = currentUserId,
+                targetId = targetId,
+                previousUserIdFlag = previousUserIdFlag,
+                previousTargetIdFlag = previousTargetIdFlag,
+                userIdFlag = saved.userIdFlag,
+                targetIdFlag = saved.targetIdFlag,
+            )
             return saved.toDto()
         }
 
         val asTarget = smartMatchRepository.findByUserIdAndTargetId(targetId, currentUserId)
         if (asTarget != null) {
-            val previous = asTarget.targetIdFlag
+            val previousUserIdFlag = asTarget.userIdFlag
+            val previousTargetIdFlag = asTarget.targetIdFlag
             if (asTarget.targetIdFlag != true) {
                 asTarget.targetIdFlag = true
                 asTarget.targetIdFlagAt = LocalDateTime.now()
             }
             val saved = smartMatchRepository.save(asTarget)
-            if (previous != true) {
-                notifyMatchedUser(targetId, currentUserId)
-            }
+            notifyAfterFlagsChanged(
+                ownerId = targetId,
+                targetId = currentUserId,
+                previousUserIdFlag = previousUserIdFlag,
+                previousTargetIdFlag = previousTargetIdFlag,
+                userIdFlag = saved.userIdFlag,
+                targetIdFlag = saved.targetIdFlag,
+            )
             return saved.toDto()
         }
 
@@ -69,7 +82,14 @@ class SmartMatchService(
             targetIdFlagAt = null
         }
         val saved = smartMatchRepository.save(smartMatch)
-        notifyMatchedUser(targetId, currentUserId)
+        notifyAfterFlagsChanged(
+            ownerId = currentUserId,
+            targetId = targetId,
+            previousUserIdFlag = null,
+            previousTargetIdFlag = null,
+            userIdFlag = true,
+            targetIdFlag = null,
+        )
         return saved.toDto()
     }
 
@@ -104,38 +124,80 @@ class SmartMatchService(
         }
 
         val saved = smartMatchRepository.save(smartMatch)
-
-        if (previousUserIdFlag != true && saved.userIdFlag == true) {
-            notifyMatchedUser(matchedTargetId, ownerId)
-        }
-        if (previousTargetIdFlag != true && saved.targetIdFlag == true) {
-            notifyCreator(ownerId, matchedTargetId)
-        }
-
+        notifyAfterFlagsChanged(
+            ownerId = ownerId,
+            targetId = matchedTargetId,
+            previousUserIdFlag = previousUserIdFlag,
+            previousTargetIdFlag = previousTargetIdFlag,
+            userIdFlag = saved.userIdFlag,
+            targetIdFlag = saved.targetIdFlag,
+        )
         return saved.toDto()
     }
 
-    private fun notifyMatchedUser(matchedUserId: UUID, actorUserId: UUID) {
-        val matchedUser = userRepository.findById(matchedUserId).orElse(null) ?: return
-        val actor = userRepository.findById(actorUserId).orElse(null)
-        val actorName = actor?.firstName?.takeIf { it.isNotBlank() } ?: "Someone"
-        firebaseCloudMessagingService.sendMatchNotification(
-            matchedUser,
-            "New smart match",
-            "$actorName wants to connect with you",
+    private fun notifyAfterFlagsChanged(
+        ownerId: UUID,
+        targetId: UUID,
+        previousUserIdFlag: Boolean?,
+        previousTargetIdFlag: Boolean?,
+        userIdFlag: Boolean?,
+        targetIdFlag: Boolean?,
+    ) {
+        val ownerLikedNow = previousUserIdFlag != true && userIdFlag == true
+        val targetLikedNow = previousTargetIdFlag != true && targetIdFlag == true
+        if (!ownerLikedNow && !targetLikedNow) {
+            return
+        }
+
+        val mutualNow = userIdFlag == true && targetIdFlag == true
+        val mutualBefore = previousUserIdFlag == true && previousTargetIdFlag == true
+        if (mutualNow && !mutualBefore) {
+            notifyMutualMatch(ownerId, targetId)
+            return
+        }
+
+        if (ownerLikedNow) {
+            notifyLike(recipientId = targetId, actorId = ownerId)
+        }
+        if (targetLikedNow) {
+            notifyLike(recipientId = ownerId, actorId = targetId)
+        }
+    }
+
+    private fun notifyLike(recipientId: UUID, actorId: UUID) {
+        val recipient = userRepository.findById(recipientId).orElse(null) ?: return
+        val actorName = displayName(userRepository.findById(actorId).orElse(null))
+        firebaseCloudMessagingService.sendSmartMatchLikeNotification(
+            recipient = recipient,
+            actorName = actorName,
+            actorUserId = actorId,
         )
     }
 
-    private fun notifyCreator(creatorUserId: UUID, actorUserId: UUID) {
-        val creator = userRepository.findById(creatorUserId).orElse(null) ?: return
-        val actor = userRepository.findById(actorUserId).orElse(null)
-        val actorName = actor?.firstName?.takeIf { it.isNotBlank() } ?: "Someone"
-        firebaseCloudMessagingService.sendMatchNotification(
-            creator,
-            "New smart match",
-            "$actorName matched with you",
-        )
+    private fun notifyMutualMatch(ownerId: UUID, targetId: UUID) {
+        val owner = userRepository.findById(ownerId).orElse(null)
+        val target = userRepository.findById(targetId).orElse(null)
+        val ownerName = displayName(owner)
+        val targetName = displayName(target)
+
+        if (owner != null) {
+            firebaseCloudMessagingService.sendSmartMatchMutualNotification(
+                recipient = owner,
+                actorName = targetName,
+                actorUserId = targetId,
+            )
+        }
+        if (target != null) {
+            firebaseCloudMessagingService.sendSmartMatchMutualNotification(
+                recipient = target,
+                actorName = ownerName,
+                actorUserId = ownerId,
+            )
+        }
     }
+
+    private fun displayName(user: User?): String =
+        user?.firstName?.takeIf { it.isNotBlank() } ?: "Someone"
 
     private fun currentUserId(jwt: Jwt): UUID {
         return jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
