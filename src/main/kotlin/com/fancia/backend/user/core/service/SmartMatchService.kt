@@ -11,6 +11,7 @@ import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.mapper.toDto
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,10 +24,13 @@ class SmartMatchService(
     private val userRepository: UserRepository,
     private val firebaseCloudMessagingService: FirebaseCloudMessagingService,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     fun create(request: @Valid CreateSmartMatchRequest, jwt: Jwt): SmartMatchResponse {
         val currentUserId = currentUserId(jwt)
         val targetId = request.userId
+        val liked = request.liked
         if (currentUserId == targetId) {
             throw SmartMatchSelfMatchException()
         }
@@ -36,8 +40,8 @@ class SmartMatchService(
         if (asOwner != null) {
             val previousUserIdFlag = asOwner.userIdFlag
             val previousTargetIdFlag = asOwner.targetIdFlag
-            if (asOwner.userIdFlag != true) {
-                asOwner.userIdFlag = true
+            if (asOwner.userIdFlag != liked) {
+                asOwner.userIdFlag = liked
                 asOwner.userIdFlagAt = LocalDateTime.now()
             }
             val saved = smartMatchRepository.save(asOwner)
@@ -56,8 +60,8 @@ class SmartMatchService(
         if (asTarget != null) {
             val previousUserIdFlag = asTarget.userIdFlag
             val previousTargetIdFlag = asTarget.targetIdFlag
-            if (asTarget.targetIdFlag != true) {
-                asTarget.targetIdFlag = true
+            if (asTarget.targetIdFlag != liked) {
+                asTarget.targetIdFlag = liked
                 asTarget.targetIdFlagAt = LocalDateTime.now()
             }
             val saved = smartMatchRepository.save(asTarget)
@@ -76,7 +80,7 @@ class SmartMatchService(
             createdBy = currentUserId
             userId = currentUserId
             this.targetId = targetId
-            userIdFlag = true
+            userIdFlag = liked
             userIdFlagAt = LocalDateTime.now()
             targetIdFlag = null
             targetIdFlagAt = null
@@ -87,7 +91,7 @@ class SmartMatchService(
             targetId = targetId,
             previousUserIdFlag = null,
             previousTargetIdFlag = null,
-            userIdFlag = true,
+            userIdFlag = liked,
             targetIdFlag = null,
         )
         return saved.toDto()
@@ -149,18 +153,29 @@ class SmartMatchService(
             return
         }
 
-        val mutualNow = userIdFlag == true && targetIdFlag == true
-        val mutualBefore = previousUserIdFlag == true && previousTargetIdFlag == true
-        if (mutualNow && !mutualBefore) {
-            notifyMutualMatch(ownerId, targetId)
-            return
-        }
+        try {
+            val mutualNow = userIdFlag == true && targetIdFlag == true
+            val mutualBefore = previousUserIdFlag == true && previousTargetIdFlag == true
+            if (mutualNow && !mutualBefore) {
+                notifyMutualMatch(ownerId, targetId)
+                return
+            }
 
-        if (ownerLikedNow) {
-            notifyLike(recipientId = targetId, actorId = ownerId)
-        }
-        if (targetLikedNow) {
-            notifyLike(recipientId = ownerId, actorId = targetId)
+            if (ownerLikedNow) {
+                notifyLike(recipientId = targetId, actorId = ownerId)
+            }
+            if (targetLikedNow) {
+                notifyLike(recipientId = ownerId, actorId = targetId)
+            }
+        } catch (ex: Exception) {
+            // Never fail like/pass because push/user JSON deserialization broke.
+            log.warn(
+                "Smart match notification failed (owner={}, target={}): {}",
+                ownerId,
+                targetId,
+                ex.message,
+                ex,
+            )
         }
     }
 
