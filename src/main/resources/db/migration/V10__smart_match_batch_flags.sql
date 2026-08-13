@@ -15,6 +15,12 @@ ALTER TABLE smart_matches ADD COLUMN target_id_flag_at TIMESTAMP(6);
 ALTER TABLE smart_matches ADD COLUMN rank INTEGER;
 ALTER TABLE smart_matches ADD COLUMN score DOUBLE PRECISION;
 
+UPDATE smart_matches
+SET user_id_flag = CASE WHEN matched_by_created_by THEN TRUE ELSE NULL END,
+    target_id_flag = CASE WHEN matched_by_user THEN TRUE ELSE NULL END,
+    user_id_flag_at = CASE WHEN matched_by_created_by THEN created_at ELSE NULL END,
+    target_id_flag_at = CASE WHEN matched_by_user THEN created_at ELSE NULL END;
+
 ALTER TABLE smart_matches DROP COLUMN matched_by_created_by;
 ALTER TABLE smart_matches DROP COLUMN matched_by_user;
 
