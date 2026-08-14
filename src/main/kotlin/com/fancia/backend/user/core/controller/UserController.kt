@@ -26,10 +26,8 @@ class UserController(
     private val applicationProperties: ApplicationProperties
 ) {
     @GetMapping("/email/{email}")
-    fun getUserByEmail(@PathVariable email: String): ResponseEntity<UserResponse> {
-        userService.findByEmail(email).let {
-            return ResponseEntity.ok(it)
-        }
+    fun getUserByEmail(@PathVariable email: String): ResponseEntity<ProfileResponse> {
+        return ResponseEntity.ok(userService.findByEmail(email))
     }
 
     @GetMapping("/me")
@@ -38,7 +36,7 @@ class UserController(
     }
 
     @GetMapping("/{id}")
-    fun getUserById(@PathVariable id: UUID): ResponseEntity<UserResponse> {
+    fun getUserById(@PathVariable id: UUID): ResponseEntity<ProfileResponse> {
         val user = userService.findById(id) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(user)
     }
@@ -58,8 +56,7 @@ class UserController(
     @PostMapping("/forgot-password")
     fun forgotPassword(@RequestBody @Valid req: ForgotPasswordRequest): ResponseEntity<Void> {
         val email = req.email ?: throw UserWithEmailNotFoundException(email = "")
-        userService.findByEmail(email)
-            ?: throw UserWithEmailNotFoundException(email)
+        userService.findByEmail(email) // ensures user exists
         userService.forgotPassword(email)
         return ResponseEntity.ok().build()
     }

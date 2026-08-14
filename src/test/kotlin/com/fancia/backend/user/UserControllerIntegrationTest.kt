@@ -409,6 +409,11 @@ class UserControllerIntegrationTest(
                 jsonPath("$.bio", `is`("Visible bio"))
                 jsonPath("$.gender", nullValue())
                 jsonPath("$.birthDate", nullValue())
+                jsonPath("$.email").doesNotExist()
+                jsonPath("$.notifications").doesNotExist()
+                jsonPath("$.authorities").doesNotExist()
+                jsonPath("$.privacy").doesNotExist()
+                jsonPath("$.premiumActive").doesNotExist()
             }
     }
 
@@ -441,10 +446,16 @@ class UserControllerIntegrationTest(
                 jsonPath("$.lastName", `is`("User"))
                 jsonPath("$.bio", `is`("Secret bio"))
                 jsonPath("$.visibility", `is`("PRIVATE"))
-                jsonPath("$.email", nullValue())
+                jsonPath("$.email").doesNotExist()
                 jsonPath("$.gender", nullValue())
                 jsonPath("$.birthDate", nullValue())
                 jsonPath("$.tags.length()", `is`(0))
+                jsonPath("$.notifications").doesNotExist()
+                jsonPath("$.authorities").doesNotExist()
+                jsonPath("$.privacy").doesNotExist()
+                jsonPath("$.premiumActive").doesNotExist()
+                jsonPath("$.eventsCount", nullValue())
+                jsonPath("$.groupsCount", nullValue())
             }
     }
 })

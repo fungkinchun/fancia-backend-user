@@ -8,6 +8,8 @@ import com.fancia.backend.shared.upload.storage.core.enums.UploadScope
 import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
 import com.fancia.backend.shared.upload.storage.core.service.moveTmpToDedicatedPath
 import com.fancia.backend.shared.user.core.dto.CreateUserRequest
+import com.fancia.backend.shared.user.core.dto.ProfileResponse
+import com.fancia.backend.shared.user.core.dto.SmartMatchPersonResponse
 import com.fancia.backend.shared.user.core.dto.UpdatePremiumStatusRequest
 import com.fancia.backend.shared.user.core.dto.UpdateUserPasswordRequest
 import com.fancia.backend.shared.user.core.dto.UpdateUserRequest
@@ -28,6 +30,8 @@ import com.fancia.backend.user.core.event.UserCreatedEvent
 import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
 import com.fancia.backend.user.core.job.SendWelcomeEmailJob
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
+import com.fancia.backend.user.mapper.toProfileResponse
+import com.fancia.backend.user.mapper.toSmartMatchPerson
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
@@ -61,11 +65,11 @@ class UserService(
     private val applicationProperties: ApplicationProperties,
     private val smartMatchRepository: SmartMatchRepository,
 ) {
-    fun findByEmail(email: String): UserResponse? {
+    fun findByEmail(email: String): ProfileResponse {
         val user = userRepository.findByEmail(email)
             ?: throw UserWithEmailNotFoundException(email)
 
-        return user.toDto().redactForPublicView()
+        return user.toProfileResponse()
     }
 
     fun getCurrentUser(jwt: Jwt): UserResponse {
@@ -75,9 +79,9 @@ class UserService(
         return user.toDto()
     }
 
-    fun findById(id: UUID): UserResponse? {
+    fun findById(id: UUID): ProfileResponse? {
         val user = userRepository.findById(id).orElse(null) ?: return null
-        return user.toDto().redactForPublicView()
+        return user.toProfileResponse()
     }
 
     @Transactional
@@ -252,7 +256,7 @@ class UserService(
         return requestId
     }
 
-    fun smartMatch(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
+    fun smartMatch(jwt: Jwt, pageable: Pageable): Page<SmartMatchPersonResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
         val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
@@ -276,7 +280,7 @@ class UserService(
         val pageContent = ordered
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { user -> user.toDto().redactForPublicView() }
+            .map { user -> user.toSmartMatchPerson() }
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
 
@@ -284,7 +288,7 @@ class UserService(
      * People connected by at least one like (either side, or both / mutual).
      * Anyone the current user passed is omitted. Mutual likes are sorted first.
      */
-    fun listMutualSmartMatches(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
+    fun listMutualSmartMatches(jwt: Jwt, pageable: Pageable): Page<SmartMatchPersonResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
         userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
@@ -300,6 +304,9 @@ class UserService(
         if (otherIds.isEmpty()) {
             return PageImpl(emptyList(), pageable, 0)
         }
+        val mutualByOtherId = rows.mapNotNull { row ->
+            row.otherUserId(currentUserId)?.let { otherId -> otherId to row.mutualLike() }
+        }.toMap()
         val usersById = userRepository.findAllById(otherIds)
             .mapNotNull { user -> user.id?.let { id -> id to user } }
             .toMap()
@@ -307,7 +314,10 @@ class UserService(
         val pageContent = ordered
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { user -> user.toDto().redactForPublicView() }
+            .map { user ->
+                val mutual = user.id?.let { mutualByOtherId[it] } == true
+                user.toSmartMatchPerson(mutualMatch = mutual)
+            }
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
 

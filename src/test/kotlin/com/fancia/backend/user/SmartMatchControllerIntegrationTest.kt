@@ -412,6 +412,17 @@ class SmartMatchControllerIntegrationTest(
                 jsonPath("$.secondUserLiked", `is`(true))
                 jsonPath("$.firstUserLiked", `is`(true))
             }
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(currentUser.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content[0].id", `is`(matchedUser.id.toString()))
+                jsonPath("$.content[0].mutualMatch", `is`(true))
+            }
     }
 
     test("people deck excludes anyone already liked either way") {
@@ -455,6 +466,7 @@ class SmartMatchControllerIntegrationTest(
                 status { isOk() }
                 jsonPath("$.content.length()", `is`(1))
                 jsonPath("$.content[0].id", `is`(other.id.toString()))
+                jsonPath("$.content[0].mutualMatch", `is`(false))
             }
     }
 

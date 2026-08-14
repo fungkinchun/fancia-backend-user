@@ -1,9 +1,9 @@
 package com.fancia.backend.user.core.controller
 
 import com.fancia.backend.shared.user.core.dto.CreateSmartMatchRequest
+import com.fancia.backend.shared.user.core.dto.SmartMatchPersonResponse
 import com.fancia.backend.shared.user.core.dto.SmartMatchResponse
 import com.fancia.backend.shared.user.core.dto.UpdateSmartMatchRequest
-import com.fancia.backend.shared.user.core.dto.UserResponse
 import com.fancia.backend.user.core.service.SmartMatchService
 import com.fancia.backend.user.core.service.UserService
 import io.swagger.v3.oas.annotations.Operation
@@ -44,7 +44,7 @@ class SmartMatchController(
         @AuthenticationPrincipal jwt: Jwt,
         @PageableDefault(size = 20)
         pageable: Pageable,
-    ): ResponseEntity<Page<UserResponse>> {
+    ): ResponseEntity<Page<SmartMatchPersonResponse>> {
         return ResponseEntity.ok(userService.smartMatch(jwt, pageable))
     }
 
@@ -58,7 +58,7 @@ class SmartMatchController(
         @AuthenticationPrincipal jwt: Jwt,
         @PageableDefault(size = 50)
         pageable: Pageable,
-    ): ResponseEntity<Page<UserResponse>> {
+    ): ResponseEntity<Page<SmartMatchPersonResponse>> {
         return ResponseEntity.ok(userService.listMutualSmartMatches(jwt, pageable))
     }
 

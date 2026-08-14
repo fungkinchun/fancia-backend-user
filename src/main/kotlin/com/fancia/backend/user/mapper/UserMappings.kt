@@ -6,6 +6,7 @@ import com.fancia.backend.shared.user.core.dto.*
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.entity.UserConnectedAccount
 import com.fancia.backend.shared.user.core.entity.UserSettings
+import com.fancia.backend.shared.user.core.enums.ProfileVisibility
 
 fun User.toDto(): UserResponse =
     UserResponse(
@@ -31,6 +32,77 @@ fun User.toDto(): UserResponse =
         premiumActive = premiumActive,
         premiumExpiresAt = premiumExpiresAt,
     )
+
+fun User.toSmartMatchPerson(mutualMatch: Boolean? = null): SmartMatchPersonResponse {
+    val privacy = settings?.privacy ?: UserPrivacySettings()
+    if (visibility == ProfileVisibility.PRIVATE) {
+        return SmartMatchPersonResponse(
+            id = id,
+            firstName = firstName,
+            lastName = lastName,
+            profileImageUrl = profileImageUrl,
+            bio = bio,
+            visibility = ProfileVisibility.PRIVATE,
+            interestsCount = tags.size,
+            mutualMatch = mutualMatch,
+        )
+    }
+    return SmartMatchPersonResponse(
+        id = id,
+        firstName = firstName,
+        lastName = lastName,
+        profileImageUrl = profileImageUrl,
+        bio = bio,
+        locationLabel = locationLabel,
+        birthDate = if (privacy.showBirthday) birthDate else null,
+        gender = if (privacy.showGender) gender else null,
+        visibility = visibility,
+        tags = if (privacy.showInterests) tags else emptySet(),
+        links = links.map { it.toDto() }.toSet(),
+        interestsCount = tags.size,
+        mutualMatch = mutualMatch,
+    )
+}
+
+/**
+ * Lean public profile DTO — display fields only; privacy already applied.
+ * Null section counts mean the section is hidden for other viewers.
+ * Does not expose privacy flags, premium, notifications, authorities, or blacklist.
+ */
+fun User.toProfileResponse(): ProfileResponse {
+    val privacy = settings?.privacy ?: UserPrivacySettings()
+    if (visibility == ProfileVisibility.PRIVATE) {
+        return ProfileResponse(
+            id = id,
+            firstName = firstName,
+            lastName = lastName,
+            profileImageUrl = profileImageUrl,
+            bio = bio,
+            visibility = ProfileVisibility.PRIVATE,
+            interestsCount = null,
+            postsCount = null,
+            eventsCount = null,
+            groupsCount = null,
+        )
+    }
+    return ProfileResponse(
+        id = id,
+        firstName = firstName,
+        lastName = lastName,
+        profileImageUrl = profileImageUrl,
+        bio = bio,
+        locationLabel = locationLabel,
+        birthDate = if (privacy.showBirthday) birthDate else null,
+        gender = if (privacy.showGender) gender else null,
+        visibility = visibility,
+        tags = if (privacy.showInterests) tags else emptySet(),
+        links = links.map { it.toDto() }.toSet(),
+        interestsCount = if (privacy.showInterests) tags.size else null,
+        // Non-null (even 0) = section visible; null = hidden. Real totals loaded by clients.
+        eventsCount = if (privacy.showEvents) 0 else null,
+        groupsCount = if (privacy.showGroups) 0 else null,
+    )
+}
 
 fun CreateUserRequest.toEntity(): User =
     User().apply {
