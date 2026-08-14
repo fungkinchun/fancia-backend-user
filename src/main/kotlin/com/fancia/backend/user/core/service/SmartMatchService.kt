@@ -51,14 +51,17 @@ class SmartMatchService(
                 smartMatchRepository.save(asSecond)
             }
             val saved = asFirst ?: asSecond!!
-            val theirLiked = saved.likedBy(otherUserId)
             notifyAfterFlagsChanged(
-                actorUserId = currentUserId,
-                otherUserId = otherUserId,
-                previousActorLiked = previousMine,
-                previousOtherLiked = previousTheirs,
-                actorLiked = liked,
-                otherLiked = theirLiked,
+                firstUserId = saved.firstUserId!!,
+                secondUserId = saved.secondUserId!!,
+                previousFirstUserLiked = saved.firstUserId.let { id ->
+                    if (id == currentUserId) previousMine else previousTheirs
+                },
+                previousSecondUserLiked = saved.secondUserId.let { id ->
+                    if (id == currentUserId) previousMine else previousTheirs
+                },
+                firstUserLiked = saved.firstUserLiked,
+                secondUserLiked = saved.secondUserLiked,
             )
             return saved.toDto()
         }
@@ -70,12 +73,12 @@ class SmartMatchService(
         }
         val saved = smartMatchRepository.save(smartMatch)
         notifyAfterFlagsChanged(
-            actorUserId = currentUserId,
-            otherUserId = otherUserId,
-            previousActorLiked = null,
-            previousOtherLiked = null,
-            actorLiked = liked,
-            otherLiked = null,
+            firstUserId = currentUserId,
+            secondUserId = otherUserId,
+            previousFirstUserLiked = null,
+            previousSecondUserLiked = null,
+            firstUserLiked = liked,
+            secondUserLiked = null,
         )
         return saved.toDto()
     }
@@ -118,52 +121,6 @@ class SmartMatchService(
             secondUserLiked = saved.secondUserLiked,
         )
         return saved.toDto()
-    }
-
-    private fun notifyAfterFlagsChanged(
-        actorUserId: UUID,
-        otherUserId: UUID,
-        previousActorLiked: Boolean?,
-        previousOtherLiked: Boolean?,
-        actorLiked: Boolean?,
-        otherLiked: Boolean?,
-    ) {
-        val actorLikedNow = previousActorLiked != true && actorLiked == true
-        val otherLikedNow = previousOtherLiked != true && otherLiked == true
-        if (!actorLikedNow && !otherLikedNow) {
-            return
-        }
-
-        try {
-            val mutualNow = actorLiked == true && otherLiked == true
-            val mutualBefore = previousActorLiked == true && previousOtherLiked == true
-            val messageableNow = actorLiked == true || otherLiked == true
-            val messageableBefore = previousActorLiked == true || previousOtherLiked == true
-
-            if (messageableNow && !messageableBefore) {
-                chatService.provisionDirectMessageChannelIfAllowed(actorUserId, otherUserId)
-            }
-
-            if (mutualNow && !mutualBefore) {
-                notifyMutualMatch(actorUserId, otherUserId)
-                return
-            }
-
-            if (actorLikedNow) {
-                notifyLike(recipientId = otherUserId, actorId = actorUserId)
-            }
-            if (otherLikedNow) {
-                notifyLike(recipientId = actorUserId, actorId = otherUserId)
-            }
-        } catch (ex: Exception) {
-            log.warn(
-                "Smart match notification failed (actor={}, other={}): {}",
-                actorUserId,
-                otherUserId,
-                ex.message,
-                ex,
-            )
-        }
     }
 
     private fun notifyAfterFlagsChanged(
