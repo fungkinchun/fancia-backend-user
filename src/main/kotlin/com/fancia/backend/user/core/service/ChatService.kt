@@ -1,6 +1,8 @@
 package com.fancia.backend.user.core.service
 
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
+import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
+import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
 import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.ChatAccessDeniedException
@@ -8,18 +10,16 @@ import com.fancia.backend.shared.user.core.exception.ChatNotConfiguredException
 import com.fancia.backend.shared.user.core.exception.SmartMatchSelfMatchException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.config.StreamChatProperties
-import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
-import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import io.getstream.chat.java.models.Channel
-import io.getstream.chat.java.models.User
-import io.getstream.chat.java.models.requests.ChannelMemberRequestObject
-import io.getstream.chat.java.models.requests.ChannelRequestObject
-import io.getstream.chat.java.models.requests.UserRequestObject
+import io.getstream.chat.java.models.Channel.ChannelMemberRequestObject
+import io.getstream.chat.java.models.Channel.ChannelRequestObject
+import io.getstream.chat.java.models.User as StreamUser
+import io.getstream.chat.java.models.User.UserRequestObject
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
-import java.util.*
+import java.util.UUID
 
 @Service
 class ChatService(
@@ -32,7 +32,7 @@ class ChatService(
         val currentUserId = currentUserId(jwt)
         val user = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         upsertStreamUser(user)
-        val token = User.createToken(currentUserId.toString(), null, null)
+        val token = StreamUser.createToken(currentUserId.toString(), null, null)
         return ChatTokenResponse(
             apiKey = streamChatProperties.apiKey,
             token = token,
@@ -100,7 +100,7 @@ class ChatService(
             .id(id)
             .name(name)
         user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { builder.image(it) }
-        User.upsert().user(builder.build()).request()
+        StreamUser.upsert().user(builder.build()).request()
     }
 
     private fun requireEnabled() {
