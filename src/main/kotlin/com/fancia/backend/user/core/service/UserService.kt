@@ -15,6 +15,7 @@ import com.fancia.backend.shared.user.core.dto.UpdateUserSettingsRequest
 import com.fancia.backend.shared.user.core.dto.UserResponse
 import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.entity.PasswordResetToken
+import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.entity.VerificationCode
@@ -264,7 +265,12 @@ class UserService(
             return PageImpl(emptyList(), pageable, 0)
         }
 
+        val alreadyMatchedIds = otherUserIds(
+            smartMatchRepository.findEitherLikedRowsForUser(currentUserId),
+            currentUserId,
+        )
         val targetIds = batchRows.mapNotNull { it.targetId }
+            .filterNot { it in alreadyMatchedIds }
         val usersById = userRepository.findAllById(targetIds)
             .filter { it.id != null && it.smartMatchEligible() }
             .associateBy { it.id!! }
@@ -278,7 +284,7 @@ class UserService(
 
     /**
      * People connected by at least one like (either side, or both / mutual).
-     * Mutual likes are sorted first. Used by the Matched tab and notification deep links.
+     * Anyone the current user passed is omitted. Mutual likes are sorted first.
      */
     fun listMutualSmartMatches(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
@@ -287,19 +293,13 @@ class UserService(
 
         val rows = smartMatchRepository.findLikedConnectionsForUser(currentUserId)
             .sortedWith(
-                compareByDescending<com.fancia.backend.shared.user.core.entity.SmartMatch> { row ->
+                compareByDescending<SmartMatch> { row ->
                     row.userIdFlag == true && row.targetIdFlag == true
                 }.thenByDescending { row ->
                     listOfNotNull(row.userIdFlagAt, row.targetIdFlagAt).maxOrNull()
                 },
             )
-        val otherIds = rows.mapNotNull { row ->
-            when (currentUserId) {
-                row.userId -> row.targetId
-                row.targetId -> row.userId
-                else -> null
-            }
-        }.distinct()
+        val otherIds = otherUserIds(rows, currentUserId)
         if (otherIds.isEmpty()) {
             return PageImpl(emptyList(), pageable, 0)
         }
@@ -337,6 +337,15 @@ class UserService(
         ).content.mapNotNull { it.id }
         tags.addAll(resolved)
     }
+
+    private fun otherUserIds(rows: List<SmartMatch>, currentUserId: UUID): List<UUID> =
+        rows.mapNotNull { row ->
+            when (currentUserId) {
+                row.userId -> row.targetId
+                row.targetId -> row.userId
+                else -> null
+            }
+        }.distinct()
 
     private fun applyBlacklistTags(blacklistedIds: MutableSet<UUID>, requestTags: Set<TagItemRequest>) {
         blacklistedIds.clear()

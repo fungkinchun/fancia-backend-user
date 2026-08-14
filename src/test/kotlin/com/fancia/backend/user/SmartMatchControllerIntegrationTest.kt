@@ -414,6 +414,107 @@ class SmartMatchControllerIntegrationTest(
             }
     }
 
+    test("people deck excludes anyone already liked either way") {
+        val viewer = registerUser(firstName = "Viewer", lastName = "One")
+        enableSmartMatch(viewer.id!!)
+        val other = registerUser(firstName = "Other", lastName = "Two")
+        enableSmartMatch(other.id!!)
+        val stranger = registerUser(firstName = "Stranger", lastName = "Three")
+        enableSmartMatch(stranger.id!!)
+
+        seedBatch(viewer.id!!, listOf(other.id!! to 1, stranger.id!! to 2))
+        smartMatchRepository.save(
+            SmartMatch().apply {
+                createdBy = other.id
+                userId = other.id
+                targetId = viewer.id
+                userIdFlag = true
+                targetIdFlag = null
+                rank = 1
+                score = 1.0
+            },
+        )
+
+        mockMvc
+            .get("/api/smart-match") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(1))
+                jsonPath("$.content[0].id", `is`(stranger.id.toString()))
+            }
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(1))
+                jsonPath("$.content[0].id", `is`(other.id.toString()))
+            }
+    }
+
+    test("passing a matched person persists and removes them from matched") {
+        val viewer = registerUser(firstName = "Viewer", lastName = "Pass")
+        enableSmartMatch(viewer.id!!)
+        val other = registerUser(firstName = "Other", lastName = "Liked")
+        enableSmartMatch(other.id!!)
+
+        seedBatch(viewer.id!!, listOf(other.id!! to 1))
+        val likedRow = smartMatchRepository.save(
+            SmartMatch().apply {
+                createdBy = other.id
+                userId = other.id
+                targetId = viewer.id
+                userIdFlag = true
+                targetIdFlag = null
+                rank = 1
+                score = 1.0
+            },
+        )
+
+        mockMvc
+            .post("/api/smart-match") {
+                with(jwtFor(viewer.id!!))
+                content = jsonMapper.writeValueAsString(
+                    mapOf("userId" to other.id.toString(), "liked" to false),
+                )
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.userIdFlag", `is`(false))
+            }
+
+        smartMatchRepository.findByIdOrNull(likedRow.id!!)!!.targetIdFlag shouldBe false
+        smartMatchRepository.findByUserIdAndTargetId(viewer.id!!, other.id!!)!!.userIdFlag shouldBe false
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(0))
+            }
+
+        mockMvc
+            .get("/api/smart-match") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(0))
+            }
+    }
+
     afterSpec {
         smartMatchRepository.deleteAll()
         userRepository.deleteAll()

@@ -23,10 +23,25 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
         FROM SmartMatch s
         WHERE (s.userId = :userId OR s.targetId = :userId)
           AND (s.userIdFlag = TRUE OR s.targetIdFlag = TRUE)
+          AND (
+            (s.userId = :userId AND (s.userIdFlag IS NULL OR s.userIdFlag = TRUE))
+            OR
+            (s.targetId = :userId AND (s.targetIdFlag IS NULL OR s.targetIdFlag = TRUE))
+          )
         ORDER BY COALESCE(s.targetIdFlagAt, s.userIdFlagAt) DESC
         """,
     )
     fun findLikedConnectionsForUser(@Param("userId") userId: UUID): List<SmartMatch>
+
+    @Query(
+        """
+        SELECT s
+        FROM SmartMatch s
+        WHERE (s.userId = :userId OR s.targetId = :userId)
+          AND (s.userIdFlag = TRUE OR s.targetIdFlag = TRUE)
+        """,
+    )
+    fun findEitherLikedRowsForUser(@Param("userId") userId: UUID): List<SmartMatch>
 
     @Query(
         """

@@ -37,41 +37,30 @@ class SmartMatchService(
         userRepository.findById(targetId).orElseThrow { UserNotFoundException() }
 
         val asOwner = smartMatchRepository.findByUserIdAndTargetId(currentUserId, targetId)
-        if (asOwner != null) {
-            val previousUserIdFlag = asOwner.userIdFlag
-            val previousTargetIdFlag = asOwner.targetIdFlag
-            if (asOwner.userIdFlag != liked) {
+        val asTarget = smartMatchRepository.findByUserIdAndTargetId(targetId, currentUserId)
+        if (asOwner != null || asTarget != null) {
+            val previousMine = asOwner?.userIdFlag ?: asTarget?.targetIdFlag
+            val previousTheirs = asOwner?.targetIdFlag ?: asTarget?.userIdFlag
+            val now = LocalDateTime.now()
+            if (asOwner != null && asOwner.userIdFlag != liked) {
                 asOwner.userIdFlag = liked
-                asOwner.userIdFlagAt = LocalDateTime.now()
+                asOwner.userIdFlagAt = now
+                smartMatchRepository.save(asOwner)
             }
-            val saved = smartMatchRepository.save(asOwner)
+            if (asTarget != null && asTarget.targetIdFlag != liked) {
+                asTarget.targetIdFlag = liked
+                asTarget.targetIdFlagAt = now
+                smartMatchRepository.save(asTarget)
+            }
+            val saved = asOwner ?: asTarget!!
+            val theirFlag = asOwner?.targetIdFlag ?: asTarget?.userIdFlag
             notifyAfterFlagsChanged(
                 ownerId = currentUserId,
                 targetId = targetId,
-                previousUserIdFlag = previousUserIdFlag,
-                previousTargetIdFlag = previousTargetIdFlag,
-                userIdFlag = saved.userIdFlag,
-                targetIdFlag = saved.targetIdFlag,
-            )
-            return saved.toDto()
-        }
-
-        val asTarget = smartMatchRepository.findByUserIdAndTargetId(targetId, currentUserId)
-        if (asTarget != null) {
-            val previousUserIdFlag = asTarget.userIdFlag
-            val previousTargetIdFlag = asTarget.targetIdFlag
-            if (asTarget.targetIdFlag != liked) {
-                asTarget.targetIdFlag = liked
-                asTarget.targetIdFlagAt = LocalDateTime.now()
-            }
-            val saved = smartMatchRepository.save(asTarget)
-            notifyAfterFlagsChanged(
-                ownerId = targetId,
-                targetId = currentUserId,
-                previousUserIdFlag = previousUserIdFlag,
-                previousTargetIdFlag = previousTargetIdFlag,
-                userIdFlag = saved.userIdFlag,
-                targetIdFlag = saved.targetIdFlag,
+                previousUserIdFlag = previousMine,
+                previousTargetIdFlag = previousTheirs,
+                userIdFlag = liked,
+                targetIdFlag = theirFlag,
             )
             return saved.toDto()
         }
