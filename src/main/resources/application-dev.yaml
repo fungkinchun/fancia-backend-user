@@ -11,6 +11,7 @@ spring:
       - aws-secretsmanager:${ENV}/${PROJECT_NAME}/oauth2
       - aws-secretsmanager:${ENV}/${PROJECT_NAME}/gis
       - aws-secretsmanager:${ENV}/${PROJECT_NAME}/firebase
+      - aws-secretsmanager:${ENV}/${PROJECT_NAME}/streamchat
   security:
     oauth2:
       resourceserver:
@@ -131,6 +132,10 @@ app:
   firebase:
     enabled: true
     credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
+  stream:
+    enabled: ${STREAM_ENABLED:false}
+    api-key: ${STREAM_API_KEY:}
+    api-secret: ${STREAM_API_SECRET:}
   s3:
     bucket-name: ${BUCKET_NAME}
 
