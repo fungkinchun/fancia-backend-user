@@ -1,11 +1,13 @@
 package com.fancia.backend.user.core.service
 
+import com.fancia.backend.shared.common.core.exception.DomainException
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
 import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
 import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
 import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.ChatAccessDeniedException
+import com.fancia.backend.shared.user.core.exception.ChatChannelException
 import com.fancia.backend.shared.user.core.exception.ChatNotConfiguredException
 import com.fancia.backend.shared.user.core.exception.SmartMatchSelfMatchException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
@@ -55,11 +57,23 @@ class ChatService(
         }
         val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         val otherUser = userRepository.findById(otherUserId).orElseThrow { UserNotFoundException() }
-        upsertStreamUser(currentUser)
-        upsertStreamUser(otherUser)
 
-        val channelId = createDirectMessageChannel(currentUserId, otherUserId)
-        return ChatChannelResponse(type = CHANNEL_TYPE, channelId = channelId)
+        return try {
+            upsertStreamUser(currentUser)
+            upsertStreamUser(otherUser)
+            val channelId = createDirectMessageChannel(currentUserId, otherUserId)
+            ChatChannelResponse(type = CHANNEL_TYPE, channelId = channelId)
+        } catch (ex: DomainException) {
+            throw ex
+        } catch (ex: Exception) {
+            log.error(
+                "Failed to create Stream channel between {} and {}",
+                currentUserId,
+                otherUserId,
+                ex,
+            )
+            throw ChatChannelException(message = ex.message ?: "Stream Chat error")
+        }
     }
 
     /** Best-effort Stream channel provisioning when Smart Match connects two users. */
