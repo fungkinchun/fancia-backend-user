@@ -23,6 +23,7 @@ class SmartMatchService(
     private val smartMatchRepository: SmartMatchRepository,
     private val userRepository: UserRepository,
     private val firebaseCloudMessagingService: FirebaseCloudMessagingService,
+    private val chatService: ChatService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -145,6 +146,13 @@ class SmartMatchService(
         try {
             val mutualNow = userIdFlag == true && targetIdFlag == true
             val mutualBefore = previousUserIdFlag == true && previousTargetIdFlag == true
+            val messageableNow = userIdFlag == true || targetIdFlag == true
+            val messageableBefore = previousUserIdFlag == true || previousTargetIdFlag == true
+
+            if (messageableNow && !messageableBefore) {
+                chatService.provisionDirectMessageChannelIfAllowed(ownerId, targetId)
+            }
+
             if (mutualNow && !mutualBefore) {
                 notifyMutualMatch(ownerId, targetId)
                 return

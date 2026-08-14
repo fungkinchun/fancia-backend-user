@@ -17,6 +17,7 @@ import io.getstream.chat.java.models.Channel.ChannelMemberRequestObject
 import io.getstream.chat.java.models.Channel.ChannelRequestObject
 import io.getstream.chat.java.models.User as StreamUser
 import io.getstream.chat.java.models.User.UserRequestObject
+import org.slf4j.LoggerFactory
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -27,11 +28,14 @@ class ChatService(
     private val userRepository: UserRepository,
     private val smartMatchRepository: SmartMatchRepository,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     fun createToken(jwt: Jwt): ChatTokenResponse {
         requireEnabled()
         val currentUserId = currentUserId(jwt)
         val user = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         upsertStreamUser(user)
+        syncMessageableChannels(currentUserId)
         val token = StreamUser.createToken(currentUserId.toString(), null, null)
         return ChatTokenResponse(
             apiKey = streamChatProperties.apiKey,
@@ -54,18 +58,41 @@ class ChatService(
         upsertStreamUser(currentUser)
         upsertStreamUser(otherUser)
 
-        val channelId = dmChannelId(currentUserId, otherUserId)
-        Channel.getOrCreate(CHANNEL_TYPE, channelId)
-            .data(
-                ChannelRequestObject.builder()
-                    .createdBy(UserRequestObject.builder().id(currentUserId.toString()).build())
-                    .member(ChannelMemberRequestObject.builder().userId(currentUserId.toString()).build())
-                    .member(ChannelMemberRequestObject.builder().userId(otherUserId.toString()).build())
-                    .build(),
-            )
-            .request()
-
+        val channelId = createDirectMessageChannel(currentUserId, otherUserId)
         return ChatChannelResponse(type = CHANNEL_TYPE, channelId = channelId)
+    }
+
+    /** Best-effort Stream channel provisioning when Smart Match connects two users. */
+    fun provisionDirectMessageChannelIfAllowed(firstUserId: UUID, secondUserId: UUID) {
+        if (!streamChatProperties.enabled) return
+        if (firstUserId == secondUserId) return
+
+        try {
+            if (!canMessage(firstUserId, secondUserId)) return
+
+            val firstUser = userRepository.findById(firstUserId).orElse(null) ?: return
+            val secondUser = userRepository.findById(secondUserId).orElse(null) ?: return
+            upsertStreamUser(firstUser)
+            upsertStreamUser(secondUser)
+            createDirectMessageChannel(firstUserId, secondUserId)
+        } catch (ex: Exception) {
+            log.warn(
+                "Failed to provision Stream channel between {} and {}: {}",
+                firstUserId,
+                secondUserId,
+                ex.message,
+                ex,
+            )
+        }
+    }
+
+    /** Ensures Stream channels exist for every current Smart Match connection for this user. */
+    fun syncMessageableChannels(currentUserId: UUID) {
+        if (!streamChatProperties.enabled) return
+
+        messageableOtherUserIds(currentUserId).forEach { otherUserId ->
+            provisionDirectMessageChannelIfAllowed(currentUserId, otherUserId)
+        }
     }
 
     fun canMessage(currentUserId: UUID, otherUserId: UUID): Boolean {
@@ -104,6 +131,32 @@ class ChatService(
         }
         StreamUser.upsert().user(builder.build()).request()
     }
+
+    private fun createDirectMessageChannel(currentUserId: UUID, otherUserId: UUID): String {
+        val channelId = dmChannelId(currentUserId, otherUserId)
+        Channel.getOrCreate(CHANNEL_TYPE, channelId)
+            .data(
+                ChannelRequestObject.builder()
+                    .createdBy(UserRequestObject.builder().id(currentUserId.toString()).build())
+                    .member(ChannelMemberRequestObject.builder().userId(currentUserId.toString()).build())
+                    .member(ChannelMemberRequestObject.builder().userId(otherUserId.toString()).build())
+                    .build(),
+            )
+            .request()
+        return channelId
+    }
+
+    private fun messageableOtherUserIds(currentUserId: UUID): Set<UUID> =
+        smartMatchRepository.findEitherLikedRowsForUser(currentUserId)
+            .mapNotNull { row ->
+                val other = when (currentUserId) {
+                    row.userId -> row.targetId
+                    row.targetId -> row.userId
+                    else -> null
+                }
+                other?.takeIf { canMessage(currentUserId, it) }
+            }
+            .toSet()
 
     private fun requireEnabled() {
         if (!streamChatProperties.enabled) {
