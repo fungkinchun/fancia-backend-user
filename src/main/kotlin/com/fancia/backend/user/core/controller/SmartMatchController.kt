@@ -33,7 +33,7 @@ class SmartMatchController(
     @Operation(
         summary = "Match people by shared interests",
         description = "Returns the precomputed Smart Match deck (unseen batch rows) for the current user, " +
-            "falling back to live ranking when no batch exists yet.",
+                "falling back to live ranking when no batch exists yet.",
     )
     @ApiResponses(
         value = [
@@ -52,7 +52,7 @@ class SmartMatchController(
     @Operation(
         summary = "List Smart Match connections",
         description = "People where either or both sides liked, excluding anyone the current user passed. " +
-            "Mutual likes are listed first. Used by the Matched tab and notification deep links.",
+                "Mutual likes are listed first. Used by the Matched tab and notification deep links.",
     )
     fun listMutualMatches(
         @AuthenticationPrincipal jwt: Jwt,

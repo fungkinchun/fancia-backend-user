@@ -5,14 +5,14 @@ import com.fancia.backend.shared.user.core.entity.SmartMatch
 
 fun SmartMatch.toDto(): SmartMatchResponse =
     SmartMatchResponse(
-        id = this@toDto.id!!,
-        userId = this@toDto.userId!!,
-        targetId = this@toDto.targetId!!,
-        userIdFlag = this@toDto.userIdFlag,
-        targetIdFlag = this@toDto.targetIdFlag,
-        userIdFlagAt = this@toDto.userIdFlagAt,
-        targetIdFlagAt = this@toDto.targetIdFlagAt,
-        rank = this@toDto.rank,
-        score = this@toDto.score,
-        createdAt = this@toDto.createdAt,
+        id = this.id!!,
+        firstUserId = this.firstUserId!!,
+        secondUserId = this.secondUserId!!,
+        firstUserLiked = this.firstUserLiked,
+        secondUserLiked = this.secondUserLiked,
+        firstUserLikedAt = this.firstUserLikedAt,
+        secondUserLikedAt = this.secondUserLikedAt,
+        rank = this.rank,
+        score = this.score,
+        createdAt = this.createdAt,
     )

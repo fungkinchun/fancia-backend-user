@@ -13,7 +13,6 @@ import com.fancia.backend.shared.user.core.dto.UpdateUserPasswordRequest
 import com.fancia.backend.shared.user.core.dto.UpdateUserRequest
 import com.fancia.backend.shared.user.core.dto.UpdateUserSettingsRequest
 import com.fancia.backend.shared.user.core.dto.UserResponse
-import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.entity.PasswordResetToken
 import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
@@ -21,13 +20,14 @@ import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.entity.VerificationCode
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.exception.*
+import com.fancia.backend.shared.user.core.support.redactForPublicView
+import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.core.event.PasswordResetTokenCreatedEvent
 import com.fancia.backend.user.core.event.UserCreatedEvent
 import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
 import com.fancia.backend.user.core.job.SendWelcomeEmailJob
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
-import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
@@ -259,17 +259,15 @@ class UserService(
         if (!currentUser.smartMatchEligible()) {
             return PageImpl(emptyList(), pageable, 0)
         }
-
-        val batchRows = smartMatchRepository.findByUserIdAndUserIdFlagIsNullOrderByRankAsc(currentUserId)
+        val batchRows = smartMatchRepository.findByFirstUserIdAndFirstUserLikedIsNullOrderByRankAsc(currentUserId)
         if (batchRows.isEmpty()) {
             return PageImpl(emptyList(), pageable, 0)
         }
-
         val alreadyMatchedIds = otherUserIds(
             smartMatchRepository.findEitherLikedRowsForUser(currentUserId),
             currentUserId,
         )
-        val targetIds = batchRows.mapNotNull { it.targetId }
+        val targetIds = batchRows.mapNotNull { it.secondUserId }
             .filterNot { it in alreadyMatchedIds }
         val usersById = userRepository.findAllById(targetIds)
             .filter { it.id != null && it.smartMatchEligible() }
@@ -290,20 +288,18 @@ class UserService(
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
         userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
-
         val rows = smartMatchRepository.findLikedConnectionsForUser(currentUserId)
             .sortedWith(
                 compareByDescending<SmartMatch> { row ->
-                    row.userIdFlag == true && row.targetIdFlag == true
+                    row.mutualLike()
                 }.thenByDescending { row ->
-                    listOfNotNull(row.userIdFlagAt, row.targetIdFlagAt).maxOrNull()
+                    listOfNotNull(row.firstUserLikedAt, row.secondUserLikedAt).maxOrNull()
                 },
             )
         val otherIds = otherUserIds(rows, currentUserId)
         if (otherIds.isEmpty()) {
             return PageImpl(emptyList(), pageable, 0)
         }
-
         val usersById = userRepository.findAllById(otherIds)
             .mapNotNull { user -> user.id?.let { id -> id to user } }
             .toMap()
@@ -339,13 +335,7 @@ class UserService(
     }
 
     private fun otherUserIds(rows: List<SmartMatch>, currentUserId: UUID): List<UUID> =
-        rows.mapNotNull { row ->
-            when (currentUserId) {
-                row.userId -> row.targetId
-                row.targetId -> row.userId
-                else -> null
-            }
-        }.distinct()
+        rows.mapNotNull { row -> row.otherUserId(currentUserId) }.distinct()
 
     private fun applyBlacklistTags(blacklistedIds: MutableSet<UUID>, requestTags: Set<TagItemRequest>) {
         blacklistedIds.clear()

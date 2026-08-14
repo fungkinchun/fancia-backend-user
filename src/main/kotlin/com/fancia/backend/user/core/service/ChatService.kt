@@ -4,6 +4,7 @@ import com.fancia.backend.shared.common.core.exception.DomainException
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
 import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
 import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
+import com.fancia.backend.shared.user.core.entity.ChatDirectMessageChannel
 import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.ChatAccessDeniedException
@@ -12,26 +13,28 @@ import com.fancia.backend.shared.user.core.exception.ChatNotConfiguredException
 import com.fancia.backend.shared.user.core.exception.SmartMatchSelfMatchException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.config.StreamChatProperties
+import com.fancia.backend.user.core.repository.ChatDirectMessageChannelRepository
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import io.getstream.chat.java.models.Channel
 import io.getstream.chat.java.models.Channel.ChannelMemberRequestObject
 import io.getstream.chat.java.models.Channel.ChannelRequestObject
-import io.getstream.chat.java.models.User as StreamUser
 import io.getstream.chat.java.models.User.UserRequestObject
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
-import java.util.UUID
+import java.util.*
+import io.getstream.chat.java.models.User as StreamUser
 
 @Service
 class ChatService(
     private val streamChatProperties: StreamChatProperties,
     private val userRepository: UserRepository,
     private val smartMatchRepository: SmartMatchRepository,
+    private val chatDirectMessageChannelRepository: ChatDirectMessageChannelRepository,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
     fun createToken(jwt: Jwt): ChatTokenResponse {
         requireEnabled()
         val currentUserId = currentUserId(jwt)
@@ -83,7 +86,6 @@ class ChatService(
 
         try {
             if (!canMessage(firstUserId, secondUserId)) return
-
             val firstUser = userRepository.findById(firstUserId).orElse(null) ?: return
             val secondUser = userRepository.findById(secondUserId).orElse(null) ?: return
             upsertStreamUser(firstUser)
@@ -112,25 +114,21 @@ class ChatService(
     fun canMessage(currentUserId: UUID, otherUserId: UUID): Boolean {
         if (currentUserId == otherUserId) return false
         return smartMatchRepository.findEitherLikedRowsForUser(currentUserId)
-            .any { row -> matchesOtherUser(row, currentUserId, otherUserId) && currentUserHasNotPassed(row, currentUserId) }
+            .any { row ->
+                matchesOtherUser(row, currentUserId, otherUserId) && currentUserHasNotPassed(
+                    row,
+                    currentUserId
+                )
+            }
     }
 
     private fun matchesOtherUser(row: SmartMatch, currentUserId: UUID, otherUserId: UUID): Boolean {
-        val other = when (currentUserId) {
-            row.userId -> row.targetId
-            row.targetId -> row.userId
-            else -> null
-        }
-        if (other != otherUserId) return false
-        return row.userIdFlag == true || row.targetIdFlag == true
+        if (row.otherUserId(currentUserId) != otherUserId) return false
+        return row.eitherLiked()
     }
 
     private fun currentUserHasNotPassed(row: SmartMatch, currentUserId: UUID): Boolean =
-        when (currentUserId) {
-            row.userId -> row.userIdFlag != false
-            row.targetId -> row.targetIdFlag != false
-            else -> false
-        }
+        row.hasNotPassed(currentUserId)
 
     private fun upsertStreamUser(user: User) {
         val id = user.id?.toString() ?: return
@@ -147,7 +145,7 @@ class ChatService(
     }
 
     private fun createDirectMessageChannel(currentUserId: UUID, otherUserId: UUID): String {
-        val channelId = dmChannelId(currentUserId, otherUserId)
+        val channelId = resolveDirectMessageChannelId(currentUserId, otherUserId)
         Channel.getOrCreate(CHANNEL_TYPE, channelId)
             .data(
                 ChannelRequestObject.builder()
@@ -160,16 +158,29 @@ class ChatService(
         return channelId
     }
 
+    private fun resolveDirectMessageChannelId(firstUserId: UUID, secondUserId: UUID): String {
+        val (first, second) = ChatDirectMessageChannel.canonicalUserPair(firstUserId, secondUserId)
+        chatDirectMessageChannelRepository.findByFirstUserIdAndSecondUserId(first, second)?.let {
+            return it.channelId
+        }
+        val channel = ChatDirectMessageChannel().apply {
+            this.firstUserId = first
+            this.secondUserId = second
+            channelId = generateChannelId()
+        }
+
+        return try {
+            chatDirectMessageChannelRepository.save(channel).channelId
+        } catch (_: DataIntegrityViolationException) {
+            chatDirectMessageChannelRepository.findByFirstUserIdAndSecondUserId(first, second)?.channelId
+                ?: throw ChatChannelException(message = "Could not allocate a chat channel id")
+        }
+    }
+
+    private fun generateChannelId(): String = UUID.randomUUID().toString().replace("-", "")
     private fun messageableOtherUserIds(currentUserId: UUID): Set<UUID> =
         smartMatchRepository.findEitherLikedRowsForUser(currentUserId)
-            .mapNotNull { row ->
-                val other = when (currentUserId) {
-                    row.userId -> row.targetId
-                    row.targetId -> row.userId
-                    else -> null
-                }
-                other?.takeIf { canMessage(currentUserId, it) }
-            }
+            .mapNotNull { row -> row.otherUserId(currentUserId)?.takeIf { canMessage(currentUserId, it) } }
             .toSet()
 
     private fun requireEnabled() {
@@ -184,10 +195,5 @@ class ChatService(
 
     companion object {
         private const val CHANNEL_TYPE = "messaging"
-
-        fun dmChannelId(first: UUID, second: UUID): String {
-            val (a, b) = listOf(first, second).sortedBy { it.toString() }
-            return "dm-$a-$b"
-        }
     }
 }

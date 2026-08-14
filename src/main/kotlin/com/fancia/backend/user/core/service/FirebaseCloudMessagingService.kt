@@ -8,7 +8,7 @@ import com.google.firebase.messaging.Notification
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import java.util.UUID
+import java.util.*
 
 @Service
 class FirebaseCloudMessagingService(
@@ -16,7 +16,6 @@ class FirebaseCloudMessagingService(
     private val firebaseMessaging: FirebaseMessaging?,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-
     fun sendSmartMatchLikeNotification(recipient: User, actorName: String, actorUserId: UUID) {
         send(
             recipient = recipient,

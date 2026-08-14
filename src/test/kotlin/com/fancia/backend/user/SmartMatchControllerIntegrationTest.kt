@@ -105,10 +105,10 @@ class SmartMatchControllerIntegrationTest(
             smartMatchRepository.save(
                 SmartMatch().apply {
                     createdBy = ownerId
-                    userId = ownerId
-                    this.targetId = targetId
-                    userIdFlag = null
-                    targetIdFlag = null
+                    firstUserId = ownerId
+                    secondUserId = targetId
+                    firstUserLiked = null
+                    secondUserLiked = null
                     this.rank = rank
                     score = 1.0
                 },
@@ -391,10 +391,10 @@ class SmartMatchControllerIntegrationTest(
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.userId", `is`(currentUser.id.toString()))
-                jsonPath("$.targetId", `is`(matchedUser.id.toString()))
-                jsonPath("$.userIdFlag", `is`(true))
-                jsonPath("$.targetIdFlag", nullValue())
+                jsonPath("$.firstUserId", `is`(currentUser.id.toString()))
+                jsonPath("$.secondUserId", `is`(matchedUser.id.toString()))
+                jsonPath("$.firstUserLiked", `is`(true))
+                jsonPath("$.secondUserLiked", nullValue())
             }
             .toSmartMatchResponse(jsonMapper)
 
@@ -402,15 +402,15 @@ class SmartMatchControllerIntegrationTest(
             .patch("/api/smart-match/${createResponse.id}") {
                 with(jwtFor(matchedUser.id!!))
                 content = jsonMapper.writeValueAsString(
-                    mapOf("targetIdFlag" to true),
+                    mapOf("secondUserLiked" to true),
                 )
                 contentType = APPLICATION_JSON
                 accept = APPLICATION_JSON
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.targetIdFlag", `is`(true))
-                jsonPath("$.userIdFlag", `is`(true))
+                jsonPath("$.secondUserLiked", `is`(true))
+                jsonPath("$.firstUserLiked", `is`(true))
             }
     }
 
@@ -426,10 +426,10 @@ class SmartMatchControllerIntegrationTest(
         smartMatchRepository.save(
             SmartMatch().apply {
                 createdBy = other.id
-                userId = other.id
-                targetId = viewer.id
-                userIdFlag = true
-                targetIdFlag = null
+                firstUserId = other.id
+                secondUserId = viewer.id
+                firstUserLiked = true
+                secondUserLiked = null
                 rank = 1
                 score = 1.0
             },
@@ -468,10 +468,10 @@ class SmartMatchControllerIntegrationTest(
         val likedRow = smartMatchRepository.save(
             SmartMatch().apply {
                 createdBy = other.id
-                userId = other.id
-                targetId = viewer.id
-                userIdFlag = true
-                targetIdFlag = null
+                firstUserId = other.id
+                secondUserId = viewer.id
+                firstUserLiked = true
+                secondUserLiked = null
                 rank = 1
                 score = 1.0
             },
@@ -488,11 +488,11 @@ class SmartMatchControllerIntegrationTest(
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.userIdFlag", `is`(false))
+                jsonPath("$.firstUserLiked", `is`(false))
             }
 
-        smartMatchRepository.findByIdOrNull(likedRow.id!!)!!.targetIdFlag shouldBe false
-        smartMatchRepository.findByUserIdAndTargetId(viewer.id!!, other.id!!)!!.userIdFlag shouldBe false
+        smartMatchRepository.findByIdOrNull(likedRow.id!!)!!.secondUserLiked shouldBe false
+        smartMatchRepository.findByFirstUserIdAndSecondUserId(viewer.id!!, other.id!!)!!.firstUserLiked shouldBe false
 
         mockMvc
             .get("/api/smart-match/matched") {

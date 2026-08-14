@@ -9,26 +9,23 @@ import java.util.*
 
 @Repository
 interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
-    fun findByUserIdAndTargetId(userId: UUID, targetId: UUID): SmartMatch?
-
-    fun existsByUserIdAndTargetId(userId: UUID, targetId: UUID): Boolean
-
-    fun findByUserIdAndUserIdFlagIsNullOrderByRankAsc(userId: UUID): List<SmartMatch>
-
-    fun findByUserId(userId: UUID): List<SmartMatch>
+    fun findByFirstUserIdAndSecondUserId(firstUserId: UUID, secondUserId: UUID): SmartMatch?
+    fun existsByFirstUserIdAndSecondUserId(firstUserId: UUID, secondUserId: UUID): Boolean
+    fun findByFirstUserIdAndFirstUserLikedIsNullOrderByRankAsc(firstUserId: UUID): List<SmartMatch>
+    fun findByFirstUserId(firstUserId: UUID): List<SmartMatch>
 
     @Query(
         """
         SELECT s
         FROM SmartMatch s
-        WHERE (s.userId = :userId OR s.targetId = :userId)
-          AND (s.userIdFlag = TRUE OR s.targetIdFlag = TRUE)
+        WHERE (s.firstUserId = :userId OR s.secondUserId = :userId)
+          AND (s.firstUserLiked = TRUE OR s.secondUserLiked = TRUE)
           AND (
-            (s.userId = :userId AND (s.userIdFlag IS NULL OR s.userIdFlag = TRUE))
+            (s.firstUserId = :userId AND (s.firstUserLiked IS NULL OR s.firstUserLiked = TRUE))
             OR
-            (s.targetId = :userId AND (s.targetIdFlag IS NULL OR s.targetIdFlag = TRUE))
+            (s.secondUserId = :userId AND (s.secondUserLiked IS NULL OR s.secondUserLiked = TRUE))
           )
-        ORDER BY COALESCE(s.targetIdFlagAt, s.userIdFlagAt) DESC
+        ORDER BY COALESCE(s.secondUserLikedAt, s.firstUserLikedAt) DESC
         """,
     )
     fun findLikedConnectionsForUser(@Param("userId") userId: UUID): List<SmartMatch>
@@ -37,29 +34,29 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
         """
         SELECT s
         FROM SmartMatch s
-        WHERE (s.userId = :userId OR s.targetId = :userId)
-          AND (s.userIdFlag = TRUE OR s.targetIdFlag = TRUE)
+        WHERE (s.firstUserId = :userId OR s.secondUserId = :userId)
+          AND (s.firstUserLiked = TRUE OR s.secondUserLiked = TRUE)
         """,
     )
     fun findEitherLikedRowsForUser(@Param("userId") userId: UUID): List<SmartMatch>
 
     @Query(
         """
-        SELECT s.targetId
+        SELECT s.secondUserId
         FROM SmartMatch s
-        WHERE s.userId = :userId
-          AND s.userIdFlag IS NOT NULL
+        WHERE s.firstUserId = :userId
+          AND s.firstUserLiked IS NOT NULL
         """,
     )
-    fun findFlaggedTargetIdsForUser(@Param("userId") userId: UUID): List<UUID>
+    fun findFlaggedSecondUserIdsForFirstUser(@Param("userId") userId: UUID): List<UUID>
 
     @Query(
         """
-        SELECT s.userId
+        SELECT s.firstUserId
         FROM SmartMatch s
-        WHERE s.targetId = :userId
-          AND s.targetIdFlag IS NOT NULL
+        WHERE s.secondUserId = :userId
+          AND s.secondUserLiked IS NOT NULL
         """,
     )
-    fun findFlaggedOwnerIdsWhereUserIsTarget(@Param("userId") userId: UUID): List<UUID>
+    fun findFlaggedFirstUserIdsForSecondUser(@Param("userId") userId: UUID): List<UUID>
 }
