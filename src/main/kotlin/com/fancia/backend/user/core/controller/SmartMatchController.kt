@@ -48,6 +48,20 @@ class SmartMatchController(
         return ResponseEntity.ok(userService.smartMatch(jwt, pageable))
     }
 
+    @GetMapping("/matched")
+    @Operation(
+        summary = "List Smart Match connections",
+        description = "People where either or both sides liked. Mutual likes are listed first. " +
+            "Used by the Matched tab and notification deep links.",
+    )
+    fun listMutualMatches(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PageableDefault(size = 50)
+        pageable: Pageable,
+    ): ResponseEntity<Page<UserResponse>> {
+        return ResponseEntity.ok(userService.listMutualSmartMatches(jwt, pageable))
+    }
+
     @PostMapping
     @Operation(summary = "Create a smart match with another user")
     fun createSmartMatch(

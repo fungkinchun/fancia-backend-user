@@ -70,6 +70,8 @@ class FirebaseCloudMessagingService(
                 .putData("type", type)
                 .putData("userId", recipient.id.toString())
                 .putData("actorUserId", actorUserId.toString())
+                .putData("focus", "matched")
+                .putData("path", "/smart-match?focus=matched&userId=$actorUserId")
                 .build()
             messaging.send(message)
             log.info("Sent {} FCM notification to user {}", type, recipient.id)

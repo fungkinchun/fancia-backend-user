@@ -19,6 +19,17 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
 
     @Query(
         """
+        SELECT s
+        FROM SmartMatch s
+        WHERE (s.userId = :userId OR s.targetId = :userId)
+          AND (s.userIdFlag = TRUE OR s.targetIdFlag = TRUE)
+        ORDER BY COALESCE(s.targetIdFlagAt, s.userIdFlagAt) DESC
+        """,
+    )
+    fun findLikedConnectionsForUser(@Param("userId") userId: UUID): List<SmartMatch>
+
+    @Query(
+        """
         SELECT s.targetId
         FROM SmartMatch s
         WHERE s.userId = :userId

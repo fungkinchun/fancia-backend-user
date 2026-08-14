@@ -276,6 +276,45 @@ class UserService(
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
 
+    /**
+     * People connected by at least one like (either side, or both / mutual).
+     * Mutual likes are sorted first. Used by the Matched tab and notification deep links.
+     */
+    fun listMutualSmartMatches(jwt: Jwt, pageable: Pageable): Page<UserResponse> {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+
+        val rows = smartMatchRepository.findLikedConnectionsForUser(currentUserId)
+            .sortedWith(
+                compareByDescending<com.fancia.backend.shared.user.core.entity.SmartMatch> { row ->
+                    row.userIdFlag == true && row.targetIdFlag == true
+                }.thenByDescending { row ->
+                    listOfNotNull(row.userIdFlagAt, row.targetIdFlagAt).maxOrNull()
+                },
+            )
+        val otherIds = rows.mapNotNull { row ->
+            when (currentUserId) {
+                row.userId -> row.targetId
+                row.targetId -> row.userId
+                else -> null
+            }
+        }.distinct()
+        if (otherIds.isEmpty()) {
+            return PageImpl(emptyList(), pageable, 0)
+        }
+
+        val usersById = userRepository.findAllById(otherIds)
+            .mapNotNull { user -> user.id?.let { id -> id to user } }
+            .toMap()
+        val ordered = otherIds.mapNotNull { usersById[it] }
+        val pageContent = ordered
+            .drop(pageable.offset.toInt())
+            .take(pageable.pageSize)
+            .map { user -> user.toDto().redactForPublicView() }
+        return PageImpl(pageContent, pageable, ordered.size.toLong())
+    }
+
     private fun applyDeviceSettings(user: User, request: UpdateUserRequest) {
         if (request.fcmToken == null && request.deviceType == null && request.deviceId == null) {
             return
