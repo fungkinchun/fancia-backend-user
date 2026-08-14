@@ -99,7 +99,9 @@ class ChatService(
         val builder = UserRequestObject.builder()
             .id(id)
             .name(name)
-        user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { builder.image(it) }
+        user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            builder.additionalField("image", url)
+        }
         StreamUser.upsert().user(builder.build()).request()
     }
 
