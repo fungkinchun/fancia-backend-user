@@ -33,7 +33,10 @@ fun User.toDto(): UserResponse =
         premiumExpiresAt = premiumExpiresAt,
     )
 
-fun User.toSmartMatchPerson(mutualMatch: Boolean? = null): SmartMatchPersonResponse {
+fun User.toSmartMatchPerson(
+    mutualMatch: Boolean? = null,
+    score: Double? = null,
+): SmartMatchPersonResponse {
     val privacy = settings?.privacy ?: UserPrivacySettings()
     if (visibility == ProfileVisibility.PRIVATE) {
         return SmartMatchPersonResponse(
@@ -44,6 +47,7 @@ fun User.toSmartMatchPerson(mutualMatch: Boolean? = null): SmartMatchPersonRespo
             bio = bio,
             visibility = ProfileVisibility.PRIVATE,
             interestsCount = tags.size,
+            score = score,
             mutualMatch = mutualMatch,
         )
     }
@@ -60,6 +64,7 @@ fun User.toSmartMatchPerson(mutualMatch: Boolean? = null): SmartMatchPersonRespo
         tags = if (privacy.showInterests) tags else emptySet(),
         links = links.map { it.toDto() }.toSet(),
         interestsCount = tags.size,
+        score = score,
         mutualMatch = mutualMatch,
     )
 }

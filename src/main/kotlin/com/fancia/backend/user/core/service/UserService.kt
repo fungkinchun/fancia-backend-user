@@ -35,6 +35,7 @@ import com.fancia.backend.user.mapper.toSmartMatchPerson
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
+import com.fancia.backend.user.core.support.MatchScoreEstimator
 import com.fancia.backend.user.external.CommonServiceClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import com.fancia.backend.user.mapper.toDto
@@ -271,6 +272,13 @@ class UserService(
             smartMatchRepository.findEitherLikedRowsForUser(currentUserId),
             currentUserId,
         )
+        val scoreByUserId = batchRows
+            .mapNotNull { row ->
+                val id = row.secondUserId ?: return@mapNotNull null
+                val score = row.score?.takeIf { it.isFinite() && it > 0.0 } ?: return@mapNotNull null
+                id to score
+            }
+            .toMap()
         val targetIds = batchRows.mapNotNull { it.secondUserId }
             .filterNot { it in alreadyMatchedIds }
         val usersById = userRepository.findAllById(targetIds)
@@ -280,7 +288,10 @@ class UserService(
         val pageContent = ordered
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
-            .map { user -> user.toSmartMatchPerson() }
+            .map { user ->
+                val stored = user.id?.let { scoreByUserId[it] }
+                user.toSmartMatchPerson(score = MatchScoreEstimator.coalesce(stored, currentUser, user))
+            }
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
 
@@ -291,7 +302,7 @@ class UserService(
     fun listMutualSmartMatches(jwt: Jwt, pageable: Pageable): Page<SmartMatchPersonResponse> {
         val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
-        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         val rows = smartMatchRepository.findLikedConnectionsForUser(currentUserId)
             .sortedWith(
                 compareByDescending<SmartMatch> { row ->
@@ -307,6 +318,11 @@ class UserService(
         val mutualByOtherId = rows.mapNotNull { row ->
             row.otherUserId(currentUserId)?.let { otherId -> otherId to row.mutualLike() }
         }.toMap()
+        val scoreByOtherId = rows.mapNotNull { row ->
+            val otherId = row.otherUserId(currentUserId) ?: return@mapNotNull null
+            val score = row.score?.takeIf { it.isFinite() && it > 0.0 } ?: return@mapNotNull null
+            otherId to score
+        }.toMap()
         val usersById = userRepository.findAllById(otherIds)
             .mapNotNull { user -> user.id?.let { id -> id to user } }
             .toMap()
@@ -316,7 +332,9 @@ class UserService(
             .take(pageable.pageSize)
             .map { user ->
                 val mutual = user.id?.let { mutualByOtherId[it] } == true
-                user.toSmartMatchPerson(mutualMatch = mutual)
+                val stored = user.id?.let { scoreByOtherId[it] }
+                val score = MatchScoreEstimator.coalesce(stored, currentUser, user)
+                user.toSmartMatchPerson(mutualMatch = mutual, score = score)
             }
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }
