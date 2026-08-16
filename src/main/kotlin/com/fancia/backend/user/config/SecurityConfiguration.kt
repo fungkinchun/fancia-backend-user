@@ -18,6 +18,7 @@ class SecurityConfiguration {
         http.authorizeHttpRequests { customizer ->
             customizer.requestMatchers("/api/smart-match", "/api/smart-match/**").authenticated()
             customizer.requestMatchers("/api/chat", "/api/chat/**").authenticated()
+            customizer.requestMatchers("/api/friends", "/api/friends/**").authenticated()
             customizer.requestMatchers(HttpMethod.GET, "/api/users/**").permitAll()
             customizer.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
             customizer.requestMatchers(HttpMethod.PUT, "/internal/users/*/premium").permitAll()

@@ -3,6 +3,7 @@ package com.fancia.backend.user.core.controller
 import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
 import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
 import com.fancia.backend.shared.user.core.dto.CreateChatChannelRequest
+import com.fancia.backend.shared.user.core.dto.CreateGroupInquiryRequest
 import com.fancia.backend.user.core.service.ChatService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -28,11 +29,23 @@ class ChatController(
     @PostMapping("/channels")
     @Operation(
         summary = "Get or create a 1:1 DM channel",
-        description = "Allowed when Smart Match connects the two users (either or both liked, and the caller has not passed).",
+        description = "Allowed when the users are friends, Smart Match connected (either liked, caller has not passed), " +
+            "or the other user has a public profile.",
     )
     fun createChannel(
         @RequestBody @Valid request: CreateChatChannelRequest,
         @AuthenticationPrincipal jwt: Jwt,
     ): ResponseEntity<ChatChannelResponse> =
         ResponseEntity.ok(chatService.getOrCreateChannel(jwt, request.otherUserId))
+
+    @PostMapping("/group-inquiries")
+    @Operation(
+        summary = "Get or create a group inquiry channel",
+        description = "Creates a messaging channel with the initiator and all ACCEPTED ADMIN members of the interest group.",
+    )
+    fun createGroupInquiry(
+        @RequestBody @Valid request: CreateGroupInquiryRequest,
+        @AuthenticationPrincipal jwt: Jwt,
+    ): ResponseEntity<ChatChannelResponse> =
+        ResponseEntity.ok(chatService.getOrCreateGroupInquiryChannel(jwt, request.interestGroupId))
 }

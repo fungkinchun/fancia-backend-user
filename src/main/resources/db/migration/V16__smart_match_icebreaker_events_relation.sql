@@ -1,12 +1,10 @@
 -- Relational icebreaker events (replaces smart_matches.icebreaker_events jsonb).
+-- Display fields live on the event service; clients load them via event_id.
 CREATE TABLE IF NOT EXISTS smart_match_icebreaker_events (
     id UUID NOT NULL,
     smart_match_id UUID NOT NULL,
     event_id UUID NOT NULL,
     score DOUBLE PRECISION NOT NULL DEFAULT 0,
-    next_start TIMESTAMP(6),
-    name VARCHAR(512),
-    location_label VARCHAR(512),
     PRIMARY KEY (id),
     CONSTRAINT fk_smart_match_icebreaker_match
         FOREIGN KEY (smart_match_id) REFERENCES smart_matches (id) ON DELETE CASCADE,
