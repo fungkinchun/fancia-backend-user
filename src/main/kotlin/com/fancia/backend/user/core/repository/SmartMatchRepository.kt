@@ -16,8 +16,9 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
 
     @Query(
         """
-        SELECT s
+        SELECT DISTINCT s
         FROM SmartMatch s
+        LEFT JOIN FETCH s.icebreakerEvents
         WHERE (s.firstUserId = :userId OR s.secondUserId = :userId)
           AND (s.firstUserLiked = TRUE OR s.secondUserLiked = TRUE)
           AND (
@@ -25,7 +26,6 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
             OR
             (s.secondUserId = :userId AND (s.secondUserLiked IS NULL OR s.secondUserLiked = TRUE))
           )
-        ORDER BY COALESCE(s.secondUserLikedAt, s.firstUserLikedAt) DESC
         """,
     )
     fun findLikedConnectionsForUser(@Param("userId") userId: UUID): List<SmartMatch>

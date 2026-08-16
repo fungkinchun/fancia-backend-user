@@ -326,7 +326,7 @@ class UserService(
         val icebreakersByOtherId = rows.mapNotNull { row ->
             val otherId = row.otherUserId(currentUserId) ?: return@mapNotNull null
             if (!row.mutualLike()) return@mapNotNull null
-            otherId to row.icebreakerEvents
+            otherId to row.icebreakerEventResponses()
         }.toMap()
         val usersById = userRepository.findAllById(otherIds)
             .mapNotNull { user -> user.id?.let { id -> id to user } }
