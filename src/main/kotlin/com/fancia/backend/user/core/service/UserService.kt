@@ -323,6 +323,11 @@ class UserService(
             val score = row.score?.takeIf { it.isFinite() && it > 0.0 } ?: return@mapNotNull null
             otherId to score
         }.toMap()
+        val icebreakersByOtherId = rows.mapNotNull { row ->
+            val otherId = row.otherUserId(currentUserId) ?: return@mapNotNull null
+            if (!row.mutualLike()) return@mapNotNull null
+            otherId to row.icebreakerEvents
+        }.toMap()
         val usersById = userRepository.findAllById(otherIds)
             .mapNotNull { user -> user.id?.let { id -> id to user } }
             .toMap()
@@ -334,7 +339,16 @@ class UserService(
                 val mutual = user.id?.let { mutualByOtherId[it] } == true
                 val stored = user.id?.let { scoreByOtherId[it] }
                 val score = MatchScoreEstimator.coalesce(stored, currentUser, user)
-                user.toSmartMatchPerson(mutualMatch = mutual, score = score)
+                val icebreakers = if (mutual) {
+                    user.id?.let { icebreakersByOtherId[it] }.orEmpty()
+                } else {
+                    emptyList()
+                }
+                user.toSmartMatchPerson(
+                    mutualMatch = mutual,
+                    score = score,
+                    icebreakerEvents = icebreakers,
+                )
             }
         return PageImpl(pageContent, pageable, ordered.size.toLong())
     }

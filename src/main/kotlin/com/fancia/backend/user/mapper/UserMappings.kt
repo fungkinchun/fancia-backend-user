@@ -36,6 +36,7 @@ fun User.toDto(): UserResponse =
 fun User.toSmartMatchPerson(
     mutualMatch: Boolean? = null,
     score: Double? = null,
+    icebreakerEvents: List<com.fancia.backend.shared.user.core.dto.PairEventIcebreakerResponse> = emptyList(),
 ): SmartMatchPersonResponse {
     val privacy = settings?.privacy ?: UserPrivacySettings()
     if (visibility == ProfileVisibility.PRIVATE) {
@@ -49,6 +50,7 @@ fun User.toSmartMatchPerson(
             interestsCount = tags.size,
             score = score,
             mutualMatch = mutualMatch,
+            icebreakerEvents = icebreakerEvents,
         )
     }
     return SmartMatchPersonResponse(
@@ -66,6 +68,7 @@ fun User.toSmartMatchPerson(
         interestsCount = tags.size,
         score = score,
         mutualMatch = mutualMatch,
+        icebreakerEvents = icebreakerEvents,
     )
 }
 
