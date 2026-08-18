@@ -176,15 +176,17 @@ class UserService(
             request.tags?.let { tags -> applyTags(it.tags, tags) }
             request.blacklistTags?.let { tags -> applyBlacklistTags(it.blacklistedIds, tags) }
             applyDeviceSettings(it, request)
-            request.profileImageKey?.let { profileImageKey ->
-                val destinationPath = fileUploadService.moveTmpToDedicatedPath(
-                    profileImageKey,
-                    UploadScope.USER,
-                    currentUserId,
-                )
-                it.profileImageUrl = "${applicationProperties.cdnUrl}/$destinationPath"
-            } ?: it.apply {
-                profileImageUrl = null
+            when (val profileImageKey = request.profileImageKey) {
+                null -> Unit
+                "" -> it.profileImageUrl = null
+                else -> {
+                    val destinationPath = fileUploadService.moveTmpToDedicatedPath(
+                        profileImageKey,
+                        UploadScope.USER,
+                        currentUserId,
+                    )
+                    it.profileImageUrl = "${applicationProperties.cdnUrl.orEmpty().trimEnd('/')}/$destinationPath"
+                }
             }
             userRepository.save(it).toDto()
         }
