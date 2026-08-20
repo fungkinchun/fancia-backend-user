@@ -56,7 +56,7 @@ class UserController(
     @PostMapping("/forgot-password")
     fun forgotPassword(@RequestBody @Valid req: ForgotPasswordRequest): ResponseEntity<Void> {
         val email = req.email ?: throw UserWithEmailNotFoundException(email = "")
-        userService.findByEmail(email) // ensures user exists
+        userService.findByEmail(email)
         userService.forgotPassword(email)
         return ResponseEntity.ok().build()
     }

@@ -72,11 +72,6 @@ fun User.toSmartMatchPerson(
     )
 }
 
-/**
- * Lean public profile DTO — display fields only; privacy already applied.
- * Null section counts mean the section is hidden for other viewers.
- * Does not expose privacy flags, premium, notifications, authorities, or blacklist.
- */
 fun User.toProfileResponse(): ProfileResponse {
     val privacy = settings?.privacy ?: UserPrivacySettings()
     if (visibility == ProfileVisibility.PRIVATE) {
@@ -106,7 +101,6 @@ fun User.toProfileResponse(): ProfileResponse {
         tags = if (privacy.showInterests) tags else emptySet(),
         links = links.map { it.toDto() }.toSet(),
         interestsCount = if (privacy.showInterests) tags.size else null,
-        // Non-null (even 0) = section visible; null = hidden. Real totals loaded by clients.
         eventsCount = if (privacy.showEvents) 0 else null,
         groupsCount = if (privacy.showGroups) 0 else null,
     )

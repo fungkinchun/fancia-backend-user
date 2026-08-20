@@ -40,6 +40,9 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
     )
     fun findEitherLikedRowsForUser(@Param("userId") userId: UUID): List<SmartMatch>
 
+    @Query("SELECT s FROM SmartMatch s WHERE s.firstUserId = :userId OR s.secondUserId = :userId")
+    fun findAllForUser(@Param("userId") userId: UUID): List<SmartMatch>
+
     @Query(
         """
         SELECT s.secondUserId

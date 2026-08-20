@@ -139,7 +139,6 @@ class ChatService(
         }
     }
 
-    /** Best-effort Stream channel provisioning when Smart Match or friendship connects two users. */
     @Transactional
     fun provisionDirectMessageChannelIfAllowed(firstUserId: UUID, secondUserId: UUID) {
         if (!streamChatProperties.enabled) return
@@ -163,7 +162,6 @@ class ChatService(
         }
     }
 
-    /** Ensures Stream channels exist for Smart Match connections and accepted friends. */
     fun syncMessageableChannels(currentUserId: UUID) {
         if (!streamChatProperties.enabled) return
 
@@ -172,10 +170,6 @@ class ChatService(
         }
     }
 
-    /**
-     * DM allowed when the pair are distinct and any of:
-     * Smart Match either-liked (caller has not passed), ACCEPTED friends, or target profile is PUBLIC.
-     */
     fun canMessage(currentUserId: UUID, otherUserId: UUID): Boolean {
         if (currentUserId == otherUserId) return false
         if (smartMatchAllows(currentUserId, otherUserId)) return true
@@ -330,6 +324,17 @@ class ChatService(
             FriendshipStatus.ACCEPTED,
         )
         return (fromSmartMatch + fromFriends).toSet()
+    }
+
+    fun deleteStreamUser(userId: UUID) {
+        if (!streamChatProperties.enabled) return
+        runCatching {
+            StreamUser.delete(userId.toString())
+                .markMessagesDeleted(true)
+                .hardDelete(true)
+                .deleteConversationChannels(true)
+                .request()
+        }.onFailure { log.error("Failed to delete Stream user {}", userId, it) }
     }
 
     private fun requireEnabled() {

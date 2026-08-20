@@ -28,6 +28,9 @@ interface FriendshipRepository : JpaRepository<Friendship, UUID> {
         @Param("statuses") statuses: Collection<FriendshipStatus>,
     ): Friendship?
 
+    @Query("SELECT f FROM Friendship f WHERE f.requesterId = :userId OR f.addresseeId = :userId")
+    fun findAllForUser(@Param("userId") userId: UUID): List<Friendship>
+
     fun findByRequesterIdAndStatus(
         requesterId: UUID,
         status: FriendshipStatus,

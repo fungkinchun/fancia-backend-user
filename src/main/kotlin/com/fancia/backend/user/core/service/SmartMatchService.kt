@@ -9,7 +9,6 @@ import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.*
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
-import com.fancia.backend.user.core.support.MatchScoreEstimator
 import com.fancia.backend.user.mapper.toDto
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
@@ -36,8 +35,8 @@ class SmartMatchService(
         if (currentUserId == otherUserId) {
             throw SmartMatchSelfMatchException()
         }
-        val otherUser = userRepository.findById(otherUserId).orElseThrow { UserNotFoundException() }
-        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        userRepository.findById(otherUserId).orElseThrow { UserNotFoundException() }
+        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         val asFirst = smartMatchRepository.findByFirstUserIdAndSecondUserId(currentUserId, otherUserId)
         val asSecond = smartMatchRepository.findByFirstUserIdAndSecondUserId(otherUserId, currentUserId)
         if (asFirst != null || asSecond != null) {
@@ -46,20 +45,13 @@ class SmartMatchService(
             val now = LocalDateTime.now()
             if (asFirst != null && asFirst.likedBy(currentUserId) != liked) {
                 asFirst.setLikedBy(currentUserId, liked, now)
-                asFirst.score = MatchScoreEstimator.coalesce(asFirst.score, currentUser, otherUser)
                 smartMatchRepository.save(asFirst)
             }
             if (asSecond != null && asSecond.likedBy(currentUserId) != liked) {
                 asSecond.setLikedBy(currentUserId, liked, now)
-                asSecond.score = MatchScoreEstimator.coalesce(asSecond.score, currentUser, otherUser)
                 smartMatchRepository.save(asSecond)
             }
             val saved = asFirst ?: asSecond!!
-            val coalesced = MatchScoreEstimator.coalesce(saved.score, currentUser, otherUser)
-            if (saved.score != coalesced) {
-                saved.score = coalesced
-                smartMatchRepository.save(saved)
-            }
             notifyAfterFlagsChanged(
                 firstUserId = saved.firstUserId!!,
                 secondUserId = saved.secondUserId!!,
@@ -78,7 +70,6 @@ class SmartMatchService(
             createdBy = currentUserId
             firstUserId = currentUserId
             secondUserId = otherUserId
-            score = MatchScoreEstimator.estimate(currentUser, otherUser)
             setLikedBy(currentUserId, liked, LocalDateTime.now())
         }
         val saved = smartMatchRepository.save(smartMatch)

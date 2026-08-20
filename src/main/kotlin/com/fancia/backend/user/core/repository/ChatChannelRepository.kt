@@ -3,6 +3,8 @@ package com.fancia.backend.user.core.repository
 import com.fancia.backend.shared.user.core.entity.ChatChannel
 import com.fancia.backend.shared.user.core.enums.ChatChannelKind
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.util.UUID
 
@@ -19,4 +21,14 @@ interface ChatChannelRepository : JpaRepository<ChatChannel, UUID> {
         interestGroupId: UUID,
         initiatorUserId: UUID,
     ): ChatChannel?
+
+    @Query(
+        """
+        SELECT c FROM ChatChannel c
+        WHERE c.firstUserId = :userId
+           OR c.secondUserId = :userId
+           OR c.initiatorUserId = :userId
+        """,
+    )
+    fun findAllForUser(@Param("userId") userId: UUID): List<ChatChannel>
 }
