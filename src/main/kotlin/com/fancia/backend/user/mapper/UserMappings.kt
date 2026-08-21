@@ -6,6 +6,7 @@ import com.fancia.backend.shared.user.core.dto.*
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.entity.UserConnectedAccount
 import com.fancia.backend.shared.user.core.entity.UserSettings
+import com.fancia.backend.shared.user.core.enums.ConnectedAccountProvider
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
 
 fun User.toDto(): UserResponse =
@@ -26,7 +27,10 @@ fun User.toDto(): UserResponse =
         blacklistedIds = blacklistedIds,
         privacy = settings?.privacy ?: UserPrivacySettings(),
         notifications = settings?.notifications ?: UserNotificationSettings(),
-        connectedAccounts = connectedAccounts.mapNotNull { it?.toDto() }.toMutableList(),
+        connectedAccounts = connectedAccounts
+            .filterNot { it?.provider.equals(ConnectedAccountProvider.STRIPE.value, ignoreCase = true) }
+            .mapNotNull { it?.toDto() }
+            .toMutableList(),
         authorities = authorities.mapNotNull { it.authority }.toMutableList(),
         links = links.map { it.toDto() }.toSet(),
         premiumActive = premiumActive,
