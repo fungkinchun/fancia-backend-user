@@ -35,9 +35,17 @@ class UserController(
         return ResponseEntity.ok(userService.getCurrentUser(jwt))
     }
 
-    @GetMapping("/{id}")
-    fun getUserById(@PathVariable id: UUID): ResponseEntity<ProfileResponse> {
-        val user = userService.findById(id) ?: return ResponseEntity.notFound().build()
+    @GetMapping("/handles/{handle}/available")
+    fun isHandleAvailable(
+        @PathVariable handle: String,
+        @AuthenticationPrincipal jwt: Jwt?,
+    ): ResponseEntity<Map<String, Boolean>> {
+        return ResponseEntity.ok(mapOf("available" to userService.isHandleAvailable(handle, jwt)))
+    }
+
+    @GetMapping("/{ref}")
+    fun getUserByRef(@PathVariable ref: String): ResponseEntity<ProfileResponse> {
+        val user = userService.findByIdOrSlug(ref) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(user)
     }
 

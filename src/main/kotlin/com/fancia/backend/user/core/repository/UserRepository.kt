@@ -13,6 +13,10 @@ import java.util.*
 interface UserRepository : JpaRepository<User, UUID> {
     fun findByEmail(@Param("email") email: String): User?
 
+    fun findBySlug(slug: String): User?
+
+    fun existsBySlug(slug: String): Boolean
+
     @Query("SELECT u FROM User u WHERE :tagId MEMBER OF u.tags")
     fun findByTagId(@Param("tagId") tagId: UUID): List<User>
 

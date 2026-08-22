@@ -8,10 +8,13 @@ import com.fancia.backend.shared.user.core.entity.UserConnectedAccount
 import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.enums.ConnectedAccountProvider
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
+import com.fancia.backend.user.core.support.UserSlugService
 
 fun User.toDto(): UserResponse =
     UserResponse(
         id = id,
+        slug = slug,
+        slugChangeAllowedAt = slugChangeAllowedAt(),
         role = role,
         firstName = firstName,
         lastName = lastName,
@@ -78,9 +81,12 @@ fun User.toSmartMatchPerson(
 
 fun User.toProfileResponse(): ProfileResponse {
     val privacy = settings?.privacy ?: UserPrivacySettings()
+    val slugMeta = slug to slugChangeAllowedAt()
     if (visibility == ProfileVisibility.PRIVATE) {
         return ProfileResponse(
             id = id,
+            slug = slugMeta.first,
+            slugChangeAllowedAt = slugMeta.second,
             firstName = firstName,
             lastName = lastName,
             profileImageUrl = profileImageUrl,
@@ -94,6 +100,8 @@ fun User.toProfileResponse(): ProfileResponse {
     }
     return ProfileResponse(
         id = id,
+        slug = slugMeta.first,
+        slugChangeAllowedAt = slugMeta.second,
         firstName = firstName,
         lastName = lastName,
         profileImageUrl = profileImageUrl,
@@ -185,3 +193,9 @@ private fun UserConnectedAccount.toDto(): ConnectedAccountResponse =
 
 private fun Link.toDto(): LinkResponse =
     LinkResponse(type = type, url = url)
+
+private fun User.slugChangeAllowedAt(): java.time.LocalDateTime? {
+    val changedAt = slugChangedAt ?: return null
+    val nextAllowed = changedAt.plusDays(UserSlugService.COOLDOWN_DAYS)
+  return if (java.time.LocalDateTime.now().isBefore(nextAllowed)) nextAllowed else null
+}

@@ -239,6 +239,7 @@ class SmartMatchControllerIntegrationTest(
     test("should match public active users by shared interests") {
         val hikingTagId = UUID.randomUUID()
         val musicTagId = UUID.randomUUID()
+
         val currentUser = registerUser(firstName = "Current", lastName = "User")
         enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId, "music" to musicTagId))

@@ -458,6 +458,155 @@ class UserControllerIntegrationTest(
                 jsonPath("$.groupsCount", nullValue())
             }
     }
+
+    test("should set profile handle via settings and fetch by slug") {
+        val user = registerUser(firstName = "Jane", lastName = "Doe")
+        val handle = "jane-doe-${UUID.randomUUID().toString().take(8)}"
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to handle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andDo { print() }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.slug", `is`(handle))
+            }
+
+        mockMvc
+            .get("/api/users/$handle") {
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id", `is`(user.id.toString()))
+                jsonPath("$.slug", `is`(handle))
+                jsonPath("$.firstName", `is`("Jane"))
+            }
+
+        mockMvc
+            .get("/api/users/${user.id}") {
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.slug", `is`(handle))
+            }
+    }
+
+    test("should report handle availability") {
+        val user = registerUser()
+        val handle = "avail-${UUID.randomUUID().toString().take(8)}"
+
+        mockMvc
+            .get("/api/users/handles/$handle/available") {
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.available", `is`(true))
+            }
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to handle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect { status { isOk() } }
+
+        mockMvc
+            .get("/api/users/handles/$handle/available") {
+                with(jwtFor(user.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.available", `is`(true))
+            }
+
+        mockMvc
+            .get("/api/users/handles/$handle/available") {
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.available", `is`(false))
+            }
+    }
+
+    test("should resolve old handle via slug history after change") {
+        val user = registerUser()
+        val firstHandle = "first-${UUID.randomUUID().toString().take(8)}"
+        val secondHandle = "second-${UUID.randomUUID().toString().take(8)}"
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to firstHandle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect { status { isOk() } }
+
+        val entity = userRepository.findByIdOrNull(user.id!!)!!
+        entity.slugChangedAt = java.time.LocalDateTime.now().minusDays(181)
+        userRepository.save(entity)
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to secondHandle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.slug", `is`(secondHandle))
+            }
+
+        mockMvc
+            .get("/api/users/$firstHandle") {
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id", `is`(user.id.toString()))
+                jsonPath("$.slug", `is`(secondHandle))
+            }
+    }
+
+    test("should reject handle change during cooldown") {
+        val user = registerUser()
+        val firstHandle = "cool-${UUID.randomUUID().toString().take(8)}"
+        val secondHandle = "cool2-${UUID.randomUUID().toString().take(8)}"
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to firstHandle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect { status { isOk() } }
+
+        mockMvc
+            .patch("/api/users/settings") {
+                with(jwtFor(user.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("slug" to secondHandle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isBadRequest() }
+                jsonPath("$.errorCode", `is`("HANDLE_CHANGE_COOLDOWN"))
+                jsonPath("$.nextAllowedAt") { exists() }
+            }
+    }
 })
 
 private fun ResultActionsDsl.toUserResponse(jsonMapper: JsonMapper): UserResponse =

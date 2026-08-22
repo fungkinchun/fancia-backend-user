@@ -35,6 +35,7 @@ import com.fancia.backend.user.mapper.toSmartMatchPerson
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
+import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.CommonServiceClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import com.fancia.backend.user.mapper.toDto
@@ -65,6 +66,7 @@ class UserService(
     private val applicationProperties: ApplicationProperties,
     private val smartMatchRepository: SmartMatchRepository,
     private val userErasureService: UserErasureService,
+    private val userSlugService: UserSlugService,
 ) {
     fun findByEmail(email: String): ProfileResponse {
         val user = userRepository.findByEmail(email)
@@ -83,6 +85,16 @@ class UserService(
     fun findById(id: UUID): ProfileResponse? {
         val user = userRepository.findById(id).orElse(null) ?: return null
         return user.toProfileResponse()
+    }
+
+    fun findByIdOrSlug(ref: String): ProfileResponse? {
+        val user = userSlugService.resolveUser(ref) ?: return null
+        return user.toProfileResponse()
+    }
+
+    fun isHandleAvailable(handle: String, jwt: Jwt?): Boolean {
+        val excludeUserId = jwt?.getClaimAsString("userId")?.let { UUID.fromString(it) }
+        return userSlugService.isHandleAvailable(handle, excludeUserId)
     }
 
     @Transactional
@@ -199,6 +211,7 @@ class UserService(
         val user = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         val settings = ensureUserSettings(user)
         request.toEntity(user, settings)
+        request.slug?.let { userSlugService.applySlugChange(user, it) }
         return userRepository.save(user).toDto()
     }
 

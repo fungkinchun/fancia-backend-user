@@ -1,6 +1,7 @@
 package com.fancia.backend.user.core.controller
 
 import com.fancia.backend.shared.common.core.exception.DomainException
+import com.fancia.backend.shared.user.core.exception.UserSlugChangeCooldownException
 import com.fancia.backend.user.config.ApplicationProperties
 import com.fasterxml.jackson.databind.JsonMappingException
 import org.slf4j.LoggerFactory
@@ -34,6 +35,22 @@ class ValidationHandler(
             instance = URI.create((request as ServletWebRequest).request.requestURI)
         }
         log.warn("Validation error: ${errors.joinToString(", ")}")
+        return problem
+    }
+
+    @ExceptionHandler(UserSlugChangeCooldownException::class)
+    fun handleSlugCooldown(ex: UserSlugChangeCooldownException, request: WebRequest): ProblemDetail {
+        val problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            ex.message,
+        ).apply {
+            applicationProperties.baseUrl?.let { type = URI.create(it) }
+            title = ex.title
+            setProperty("errorCode", ex.errorCode)
+            setProperty("nextAllowedAt", ex.nextAllowedAt.toString())
+            instance = URI.create((request as ServletWebRequest).request.requestURI)
+        }
+        log.warn("Handle cooldown: ${ex.nextAllowedAt}")
         return problem
     }
 
