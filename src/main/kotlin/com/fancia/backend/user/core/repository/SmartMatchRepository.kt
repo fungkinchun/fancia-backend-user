@@ -19,12 +19,14 @@ interface SmartMatchRepository : JpaRepository<SmartMatch, UUID> {
         SELECT DISTINCT s
         FROM SmartMatch s
         LEFT JOIN FETCH s.icebreakerEvents
-        WHERE (s.firstUserId = :userId OR s.secondUserId = :userId)
-          AND (s.firstUserLiked = TRUE OR s.secondUserLiked = TRUE)
-          AND (
-            (s.firstUserId = :userId AND (s.firstUserLiked IS NULL OR s.firstUserLiked = TRUE))
+        WHERE (
+            (s.firstUserId = :userId
+              AND s.secondUserLiked = TRUE
+              AND (s.firstUserLiked IS NULL OR s.firstUserLiked = TRUE))
             OR
-            (s.secondUserId = :userId AND (s.secondUserLiked IS NULL OR s.secondUserLiked = TRUE))
+            (s.secondUserId = :userId
+              AND s.firstUserLiked = TRUE
+              AND (s.secondUserLiked IS NULL OR s.secondUserLiked = TRUE))
           )
         """,
     )

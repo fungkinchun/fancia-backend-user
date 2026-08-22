@@ -88,7 +88,6 @@ class UserPostControllerIntegrationTest(
         return user
     }
 
-
     test("should forward post creation to common-internal with user target id") {
         val user = registerUser()
         val userId = user.id!!

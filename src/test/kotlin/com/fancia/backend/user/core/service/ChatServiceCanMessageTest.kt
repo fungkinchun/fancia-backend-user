@@ -23,7 +23,6 @@ class ChatServiceCanMessageTest : FunSpec({
     val friendshipRepository = Mockito.mock(FriendshipRepository::class.java)
     val chatChannelRepository = Mockito.mock(ChatChannelRepository::class.java)
     val interestGroupServiceClient = Mockito.mock(InterestGroupServiceClient::class.java)
-
     val chatService = ChatService(
         streamChatProperties = streamChatProperties,
         userRepository = userRepository,

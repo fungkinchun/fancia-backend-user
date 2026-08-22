@@ -51,8 +51,8 @@ class SmartMatchController(
     @GetMapping("/matched")
     @Operation(
         summary = "List Smart Match connections",
-        description = "People where either or both sides liked, excluding anyone the current user passed. " +
-                "Mutual likes are listed first. Used by the Matched tab and notification deep links.",
+        description = "People who liked you (inbound) or mutual likes, excluding anyone you passed. " +
+                "Your own outbound likes stay hidden until they like you back. Mutual likes are listed first.",
     )
     fun listMutualMatches(
         @AuthenticationPrincipal jwt: Jwt,

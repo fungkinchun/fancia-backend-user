@@ -239,7 +239,6 @@ class SmartMatchControllerIntegrationTest(
     test("should match public active users by shared interests") {
         val hikingTagId = UUID.randomUUID()
         val musicTagId = UUID.randomUUID()
-
         val currentUser = registerUser(firstName = "Current", lastName = "User")
         enableSmartMatch(currentUser.id!!)
         assignTags(currentUser.id!!, listOf("hiking" to hikingTagId, "music" to musicTagId))
@@ -467,6 +466,74 @@ class SmartMatchControllerIntegrationTest(
                 jsonPath("$.content.length()", `is`(1))
                 jsonPath("$.content[0].id", `is`(other.id.toString()))
                 jsonPath("$.content[0].mutualMatch", `is`(false))
+            }
+    }
+
+    test("outbound like stays off matched until the other person likes back") {
+        val viewer = registerUser(firstName = "Viewer", lastName = "Out")
+        enableSmartMatch(viewer.id!!)
+        val other = registerUser(firstName = "Other", lastName = "Target")
+        enableSmartMatch(other.id!!)
+
+        seedBatch(viewer.id!!, listOf(other.id!! to 1))
+
+        mockMvc
+            .post("/api/smart-match") {
+                with(jwtFor(viewer.id!!))
+                content = jsonMapper.writeValueAsString(
+                    mapOf("userId" to other.id.toString(), "liked" to true),
+                )
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.firstUserLiked", `is`(true))
+            }
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(0))
+            }
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(other.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(1))
+                jsonPath("$.content[0].id", `is`(viewer.id.toString()))
+                jsonPath("$.content[0].mutualMatch", `is`(false))
+            }
+
+        mockMvc
+            .post("/api/smart-match") {
+                with(jwtFor(other.id!!))
+                content = jsonMapper.writeValueAsString(
+                    mapOf("userId" to viewer.id.toString(), "liked" to true),
+                )
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect { status { isOk() } }
+
+        mockMvc
+            .get("/api/smart-match/matched") {
+                with(jwtFor(viewer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.content.length()", `is`(1))
+                jsonPath("$.content[0].id", `is`(other.id.toString()))
+                jsonPath("$.content[0].mutualMatch", `is`(true))
             }
     }
 
