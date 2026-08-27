@@ -470,7 +470,7 @@ class SmartMatchControllerIntegrationTest(
             }
     }
 
-    test("outbound like appears on matched for both users until mutual") {
+    test("outbound like stays off matched until the other person likes back") {
         val viewer = registerUser(firstName = "Viewer", lastName = "Out")
         enableSmartMatch(viewer.id!!)
         val other = registerUser(firstName = "Other", lastName = "Target")
@@ -499,9 +499,7 @@ class SmartMatchControllerIntegrationTest(
             }
             .andExpect {
                 status { isOk() }
-                jsonPath("$.content.length()", `is`(1))
-                jsonPath("$.content[0].id", `is`(other.id.toString()))
-                jsonPath("$.content[0].mutualMatch", `is`(false))
+                jsonPath("$.content.length()", `is`(0))
             }
 
         mockMvc
