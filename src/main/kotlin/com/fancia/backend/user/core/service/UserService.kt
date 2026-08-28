@@ -22,6 +22,8 @@ import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.entity.VerificationCode
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.exception.*
+import com.fancia.backend.shared.user.core.support.hasPremiumAccess
+import com.fancia.backend.shared.user.core.support.PremiumLimits
 import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.config.ApplicationProperties
@@ -300,7 +302,9 @@ class UserService(
         val usersById = userRepository.findAllById(targetIds)
             .filter { it.id != null && it.smartMatchEligible() }
             .associateBy { it.id!! }
-        val ordered = targetIds.mapNotNull { usersById[it] }
+        val isPremium = hasPremiumAccess(jwt, currentUser)
+        val deckLimit = PremiumLimits.smartMatchDeckSize(isPremium)
+        val ordered = targetIds.mapNotNull { usersById[it] }.take(deckLimit)
         val pageContent = ordered
             .drop(pageable.offset.toInt())
             .take(pageable.pageSize)
