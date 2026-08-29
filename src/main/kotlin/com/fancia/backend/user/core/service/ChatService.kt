@@ -140,6 +140,25 @@ class ChatService(
     }
 
     @Transactional
+    fun getOrCreateSupportChannel(jwt: Jwt): ChatChannelResponse {
+        requireEnabled()
+        val currentUserId = currentUserId(jwt)
+        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+
+        return try {
+            upsertStreamUser(currentUser)
+            upsertSupportStreamUser()
+            val channelId = createSupportChannel(currentUserId)
+            ChatChannelResponse(type = CHANNEL_TYPE, channelId = channelId)
+        } catch (ex: DomainException) {
+            throw ex
+        } catch (ex: Exception) {
+            log.error("Failed to create support channel for {}", currentUserId, ex)
+            throw ChatChannelException(message = ex.message ?: "Stream Chat error")
+        }
+    }
+
+    @Transactional
     fun provisionDirectMessageChannelIfAllowed(firstUserId: UUID, secondUserId: UUID) {
         if (!streamChatProperties.enabled) return
         if (firstUserId == secondUserId) return
@@ -216,6 +235,17 @@ class ChatService(
         StreamUser.upsert().user(builder.build()).request()
     }
 
+    private fun upsertSupportStreamUser() {
+        StreamUser.upsert()
+            .user(
+                UserRequestObject.builder()
+                    .id(SUPPORT_STREAM_USER_ID)
+                    .name(SUPPORT_DISPLAY_NAME)
+                    .build(),
+            )
+            .request()
+    }
+
     private fun createDirectMessageChannel(currentUserId: UUID, otherUserId: UUID): String {
         val channel = resolveDirectMessageChannel(currentUserId, otherUserId)
         Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
@@ -248,6 +278,22 @@ class ChatService(
         }
         Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
             .data(dataBuilder.build())
+            .request()
+        return channel.channelId
+    }
+
+    private fun createSupportChannel(currentUserId: UUID): String {
+        val channel = resolveSupportChannel(currentUserId)
+        Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
+            .data(
+                ChannelRequestObject.builder()
+                    .createdBy(UserRequestObject.builder().id(currentUserId.toString()).build())
+                    .member(ChannelMemberRequestObject.builder().userId(currentUserId.toString()).build())
+                    .member(ChannelMemberRequestObject.builder().userId(SUPPORT_STREAM_USER_ID).build())
+                    .additionalField("kind", "support")
+                    .additionalField("name", SUPPORT_DISPLAY_NAME)
+                    .build(),
+            )
             .request()
         return channel.channelId
     }
@@ -314,6 +360,27 @@ class ChatService(
         }
     }
 
+    private fun resolveSupportChannel(initiatorUserId: UUID): ChatChannel {
+        chatChannelRepository.findByKindAndInitiatorUserId(ChatChannelKind.SUPPORT, initiatorUserId)
+            ?.let { return it }
+
+        val now = LocalDateTime.now()
+        val channel = ChatChannel().apply {
+            kind = ChatChannelKind.SUPPORT
+            this.initiatorUserId = initiatorUserId
+            channelId = generateChannelId()
+            createdBy = initiatorUserId
+            addMember(initiatorUserId, now)
+        }
+
+        return try {
+            chatChannelRepository.save(channel)
+        } catch (_: DataIntegrityViolationException) {
+            chatChannelRepository.findByKindAndInitiatorUserId(ChatChannelKind.SUPPORT, initiatorUserId)
+                ?: throw ChatChannelException(message = "Could not allocate a support channel id")
+        }
+    }
+
     private fun generateChannelId(): String = UUID.randomUUID().toString().replace("-", "")
 
     private fun messageableOtherUserIds(currentUserId: UUID): Set<UUID> {
@@ -349,5 +416,7 @@ class ChatService(
 
     companion object {
         private const val CHANNEL_TYPE = "messaging"
+        const val SUPPORT_STREAM_USER_ID = "fancia-support"
+        private const val SUPPORT_DISPLAY_NAME = "Fancia Support"
     }
 }

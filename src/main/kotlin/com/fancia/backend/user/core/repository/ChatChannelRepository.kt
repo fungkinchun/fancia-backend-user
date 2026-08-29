@@ -22,6 +22,11 @@ interface ChatChannelRepository : JpaRepository<ChatChannel, UUID> {
         initiatorUserId: UUID,
     ): ChatChannel?
 
+    fun findByKindAndInitiatorUserId(
+        kind: ChatChannelKind,
+        initiatorUserId: UUID,
+    ): ChatChannel?
+
     @Query(
         """
         SELECT c FROM ChatChannel c

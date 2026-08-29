@@ -48,4 +48,13 @@ class ChatController(
         @AuthenticationPrincipal jwt: Jwt,
     ): ResponseEntity<ChatChannelResponse> =
         ResponseEntity.ok(chatService.getOrCreateGroupInquiryChannel(jwt, request.interestGroupId))
+
+    @PostMapping("/support")
+    @Operation(
+        summary = "Get or create the member's Fancia Support channel",
+        description = "Creates a 1:1 messaging channel with the Stream system user fancia-support. " +
+            "Staff reply from the Stream Dashboard as that user.",
+    )
+    fun createSupport(@AuthenticationPrincipal jwt: Jwt): ResponseEntity<ChatChannelResponse> =
+        ResponseEntity.ok(chatService.getOrCreateSupportChannel(jwt))
 }
