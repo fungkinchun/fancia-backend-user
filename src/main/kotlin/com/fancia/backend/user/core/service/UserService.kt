@@ -89,6 +89,11 @@ class UserService(
         return user.toProfileResponse()
     }
 
+    fun getUserResponseById(id: UUID): UserResponse {
+        val user = userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }
+        return user.toDto()
+    }
+
     fun findByIdOrSlug(ref: String): ProfileResponse? {
         val user = userSlugService.resolveUser(ref) ?: return null
         return user.toProfileResponse()

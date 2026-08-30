@@ -16,6 +16,12 @@ import java.util.*
 class UserInternalController(
     private val userService: UserService,
 ) {
+    @Operation(summary = "Get user by id (service-to-service)")
+    @GetMapping("/{id}")
+    fun getUser(@PathVariable id: UUID): ResponseEntity<UserResponse> {
+        return ResponseEntity.ok(userService.getUserResponseById(id))
+    }
+
     @Operation(summary = "Update user premium status")
     @PutMapping("/{id}/premium")
     fun updatePremiumStatus(

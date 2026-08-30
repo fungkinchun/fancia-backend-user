@@ -96,6 +96,7 @@ fun User.toProfileResponse(): ProfileResponse {
             postsCount = null,
             eventsCount = null,
             groupsCount = null,
+            premiumActive = premiumActive,
         )
     }
     return ProfileResponse(
@@ -115,6 +116,7 @@ fun User.toProfileResponse(): ProfileResponse {
         interestsCount = if (privacy.showInterests) tags.size else null,
         eventsCount = if (privacy.showEvents) 0 else null,
         groupsCount = if (privacy.showGroups) 0 else null,
+        premiumActive = premiumActive,
     )
 }
 

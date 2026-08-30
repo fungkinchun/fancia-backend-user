@@ -413,7 +413,7 @@ class UserControllerIntegrationTest(
                 jsonPath("$.notifications") { doesNotExist() }
                 jsonPath("$.authorities") { doesNotExist() }
                 jsonPath("$.privacy") { doesNotExist() }
-                jsonPath("$.premiumActive") { doesNotExist() }
+                jsonPath("$.premiumActive", `is`(false))
             }
     }
 
@@ -453,7 +453,7 @@ class UserControllerIntegrationTest(
                 jsonPath("$.notifications") { doesNotExist() }
                 jsonPath("$.authorities") { doesNotExist() }
                 jsonPath("$.privacy") { doesNotExist() }
-                jsonPath("$.premiumActive") { doesNotExist() }
+                jsonPath("$.premiumActive", `is`(false))
                 jsonPath("$.eventsCount", nullValue())
                 jsonPath("$.groupsCount", nullValue())
             }

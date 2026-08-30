@@ -22,6 +22,7 @@ class SecurityConfiguration {
             customizer.requestMatchers(HttpMethod.GET, "/api/users/**").permitAll()
             customizer.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
             customizer.requestMatchers(HttpMethod.PUT, "/internal/users/*/premium").permitAll()
+            customizer.requestMatchers(HttpMethod.GET, "/internal/users/*").permitAll()
             customizer.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
             customizer.requestMatchers("/actuator/**").permitAll()
             customizer.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
