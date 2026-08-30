@@ -1,5 +1,6 @@
 package com.fancia.backend.user
 
+import com.fancia.backend.shared.common.post.core.enums.PostStatus
 import com.fancia.backend.shared.common.post.core.dto.PostResponse
 import com.fancia.backend.shared.user.core.dto.UserResponse
 import com.fancia.backend.shared.user.core.enums.Gender
@@ -98,8 +99,7 @@ class UserPostControllerIntegrationTest(
             authorUserId = userId,
             body = "hello",
             media = emptyList(),
-            featured = false,
-            pinned = false,
+            status = PostStatus.VISIBLE,
             createdAt = null,
         )
         stubFor(
@@ -118,8 +118,7 @@ class UserPostControllerIntegrationTest(
                     mapOf(
                         "body" to "hello",
                         "media" to emptyList<Any>(),
-                        "featured" to false,
-                        "pinned" to false,
+                        "status" to "VISIBLE",
                     )
                 )
                 contentType = APPLICATION_JSON
@@ -154,8 +153,7 @@ class UserPostControllerIntegrationTest(
                     mapOf(
                         "body" to "hello",
                         "media" to emptyList<Any>(),
-                        "featured" to false,
-                        "pinned" to false,
+                        "status" to "VISIBLE",
                     )
                 )
                 contentType = APPLICATION_JSON

@@ -2,6 +2,8 @@ package com.fancia.backend.user.external
 
 import com.fancia.backend.shared.common.comment.core.dto.CommentResponse
 import com.fancia.backend.shared.common.comment.core.dto.CreateCommentRequest
+import com.fancia.backend.shared.common.post.core.dto.CastPollVoteRequest
+import com.fancia.backend.shared.common.post.core.enums.PostKind
 import com.fancia.backend.shared.common.post.core.dto.CreatePostRequest
 import com.fancia.backend.shared.common.post.core.dto.PostResponse
 import com.fancia.backend.shared.common.post.core.dto.UpdatePostRequest
@@ -37,6 +39,8 @@ interface CommonInternalClient {
     @GetMapping("/posts")
     fun listPosts(
         @RequestParam targetId: UUID,
+        @RequestParam(required = false) kind: PostKind? = null,
+        @RequestParam(defaultValue = "false") openOnly: Boolean = false,
         pageable: Pageable,
     ): Page<PostResponse>
 
@@ -54,6 +58,12 @@ interface CommonInternalClient {
 
     @DeleteMapping("/posts/{postId}/likes")
     fun unlikePost(@PathVariable postId: UUID)
+
+    @PostMapping("/posts/{postId}/votes")
+    fun voteOnPost(
+        @PathVariable postId: UUID,
+        @RequestBody request: CastPollVoteRequest,
+    ): PostResponse
 
     @PostMapping("/comments/{commentId}/likes")
     fun likeComment(@PathVariable commentId: UUID)

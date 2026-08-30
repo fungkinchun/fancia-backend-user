@@ -1,6 +1,8 @@
 package com.fancia.backend.user.core.service
 
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
+import com.fancia.backend.shared.common.post.core.dto.CastPollVoteRequest
+import com.fancia.backend.shared.common.post.core.enums.PostKind
 import com.fancia.backend.shared.common.post.core.dto.CreatePostBody
 import com.fancia.backend.shared.common.post.core.dto.CreatePostRequest
 import com.fancia.backend.shared.common.post.core.dto.PostMediaItem
@@ -39,8 +41,10 @@ class UserPostService(
                 authorUserId = currentUserId,
                 body = request.body,
                 media = dedicateMedia(request.media, userId),
-                featured = request.featured,
-                pinned = request.pinned,
+                status = request.status,
+                expiredAt = request.expiredAt,
+                kind = request.kind,
+                poll = request.poll,
             )
         )
     }
@@ -81,11 +85,27 @@ class UserPostService(
         commonInternalClient.unlikePost(postId)
     }
 
-    fun list(userId: UUID, pageable: Pageable): Page<PostResponse> {
+    fun vote(userId: UUID, postId: UUID, request: CastPollVoteRequest, jwt: Jwt): PostResponse {
+        jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        get(userId, postId)
+        val post = commonInternalClient.voteOnPost(postId, request)
+        if (post.targetId != userId) {
+            throw UserNotFoundException()
+        }
+        return post
+    }
+
+    fun list(
+        userId: UUID,
+        kind: PostKind? = null,
+        openOnly: Boolean = false,
+        pageable: Pageable,
+    ): Page<PostResponse> {
         if (!userRepository.existsById(userId)) {
             throw UserNotFoundException()
         }
-        return commonInternalClient.listPosts(userId, pageable)
+        return commonInternalClient.listPosts(userId, kind, openOnly, pageable)
     }
 
     fun get(userId: UUID, postId: UUID): PostResponse {
