@@ -159,6 +159,24 @@ class ChatService(
     }
 
     @Transactional
+    fun getOrCreateEventChannel(jwt: Jwt, eventId: UUID): ChatChannelResponse {
+        requireEnabled()
+        val currentUserId = currentUserId(jwt)
+        val currentUser = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+
+        return try {
+            upsertStreamUser(currentUser)
+            val channelId = createEventChannel(eventId = eventId, joiningUserId = currentUserId)
+            ChatChannelResponse(type = CHANNEL_TYPE, channelId = channelId)
+        } catch (ex: DomainException) {
+            throw ex
+        } catch (ex: Exception) {
+            log.error("Failed to create event channel for event {} by {}", eventId, currentUserId, ex)
+            throw ChatChannelException(message = ex.message ?: "Stream Chat error")
+        }
+    }
+
+    @Transactional
     fun provisionDirectMessageChannelIfAllowed(firstUserId: UUID, secondUserId: UUID) {
         if (!streamChatProperties.enabled) return
         if (firstUserId == secondUserId) return
@@ -298,6 +316,23 @@ class ChatService(
         return channel.channelId
     }
 
+    private fun createEventChannel(eventId: UUID, joiningUserId: UUID): String {
+        val channel = resolveEventChannel(eventId, joiningUserId)
+        val memberIds = channel.members.map { it.userId }.distinct()
+        val dataBuilder = ChannelRequestObject.builder()
+            .createdBy(UserRequestObject.builder().id(joiningUserId.toString()).build())
+            .additionalField("kind", "event")
+            .additionalField("eventId", eventId.toString())
+            .additionalField("name", "Event chat")
+        memberIds.forEach { userId ->
+            dataBuilder.member(ChannelMemberRequestObject.builder().userId(userId.toString()).build())
+        }
+        Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
+            .data(dataBuilder.build())
+            .request()
+        return channel.channelId
+    }
+
     private fun resolveDirectMessageChannel(firstUserId: UUID, secondUserId: UUID): ChatChannel {
         val (first, second) = ChatChannel.canonicalUserPair(firstUserId, secondUserId)
         chatChannelRepository.findByKindAndFirstUserIdAndSecondUserId(ChatChannelKind.DM, first, second)
@@ -378,6 +413,32 @@ class ChatService(
         } catch (_: DataIntegrityViolationException) {
             chatChannelRepository.findByKindAndInitiatorUserId(ChatChannelKind.SUPPORT, initiatorUserId)
                 ?: throw ChatChannelException(message = "Could not allocate a support channel id")
+        }
+    }
+
+    private fun resolveEventChannel(eventId: UUID, joiningUserId: UUID): ChatChannel {
+        val now = LocalDateTime.now()
+        val existing = chatChannelRepository.findByKindAndEventId(ChatChannelKind.EVENT, eventId)
+        if (existing != null) {
+            existing.addMember(joiningUserId, now)
+            return chatChannelRepository.save(existing)
+        }
+
+        val channel = ChatChannel().apply {
+            kind = ChatChannelKind.EVENT
+            this.eventId = eventId
+            channelId = generateChannelId()
+            createdBy = joiningUserId
+            addMember(joiningUserId, now)
+        }
+
+        return try {
+            chatChannelRepository.save(channel)
+        } catch (_: DataIntegrityViolationException) {
+            val raced = chatChannelRepository.findByKindAndEventId(ChatChannelKind.EVENT, eventId)
+                ?: throw ChatChannelException(message = "Could not allocate an event channel id")
+            raced.addMember(joiningUserId, now)
+            chatChannelRepository.save(raced)
         }
     }
 

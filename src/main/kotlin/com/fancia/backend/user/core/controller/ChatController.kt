@@ -4,6 +4,7 @@ import com.fancia.backend.shared.user.core.dto.ChatChannelResponse
 import com.fancia.backend.shared.user.core.dto.ChatTokenResponse
 import com.fancia.backend.shared.user.core.dto.CreateChatChannelRequest
 import com.fancia.backend.shared.user.core.dto.CreateGroupInquiryRequest
+import com.fancia.backend.shared.user.core.exception.ChatChannelException
 import com.fancia.backend.user.core.service.ChatService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -28,15 +29,26 @@ class ChatController(
 
     @PostMapping("/channels")
     @Operation(
-        summary = "Get or create a 1:1 DM channel",
-        description = "Allowed when the users are friends, Smart Match connected (either liked, caller has not passed), " +
-            "or the other user has a public profile.",
+        summary = "Get or create a Stream messaging channel",
+        description = "Pass otherUserId for a 1:1 DM (friends / Smart Match / public profile), " +
+            "or eventId for the shared channel of an event. Exactly one of those fields is required.",
     )
     fun createChannel(
         @RequestBody @Valid request: CreateChatChannelRequest,
         @AuthenticationPrincipal jwt: Jwt,
-    ): ResponseEntity<ChatChannelResponse> =
-        ResponseEntity.ok(chatService.getOrCreateChannel(jwt, request.otherUserId))
+    ): ResponseEntity<ChatChannelResponse> {
+        val otherUserId = request.otherUserId
+        val eventId = request.eventId
+        return when {
+            otherUserId != null && eventId == null ->
+                ResponseEntity.ok(chatService.getOrCreateChannel(jwt, otherUserId))
+            eventId != null && otherUserId == null ->
+                ResponseEntity.ok(chatService.getOrCreateEventChannel(jwt, eventId))
+            else -> throw ChatChannelException(
+                message = "Provide either otherUserId or eventId (exactly one)",
+            )
+        }
+    }
 
     @PostMapping("/group-inquiries")
     @Operation(
