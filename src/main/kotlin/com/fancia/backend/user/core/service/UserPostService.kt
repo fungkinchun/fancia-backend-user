@@ -41,10 +41,10 @@ class UserPostService(
                 targetId = userId,
                 authorUserId = currentUserId,
                 body = request.body,
-                media = dedicateMedia(request.media, userId),
-                status = request.status,
+                media = dedicateMedia(request.mediaOrEmpty(), userId),
+                status = request.statusOrDefault(),
                 expiredAt = request.expiredAt,
-                kind = request.kind,
+                kind = request.kindOrDefault(),
                 poll = request.poll,
             )
         )
