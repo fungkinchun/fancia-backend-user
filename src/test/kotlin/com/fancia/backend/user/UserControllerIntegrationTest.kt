@@ -107,10 +107,12 @@ class UserControllerIntegrationTest(
                 jsonPath("$.email", `is`("user@example.com"))
                 jsonPath("$.id", `is`(notNullValue()))
                 jsonPath("$.status", `is`("REGISTERED"))
+                jsonPath("$.slug", `is`("jon-snow"))
             }
         val createdUser = response.toUserResponse(jsonMapper)
         val found = userRepository.findByIdOrNull(createdUser.id!!)
         found?.id shouldBe createdUser.id
+        found?.slug shouldBe "jon-snow"
         val mockResponse = mapOf(
             "content" to listOf(
                 mapOf(

@@ -118,6 +118,7 @@ class UserService(
         user.setPassword(
             passwordEncoder.encode(user.password) ?: throw InvalidPasswordException()
         )
+        userSlugService.assignDefaultSlugIfMissing(user)
         userRepository.save(user)
         verificationCodeRepository.save(VerificationCode(user))
         user.id?.let {

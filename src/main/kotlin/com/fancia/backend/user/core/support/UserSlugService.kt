@@ -5,6 +5,7 @@ import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.UserSlugChangeCooldownException
 import com.fancia.backend.shared.user.core.exception.UserSlugInvalidException
 import com.fancia.backend.shared.user.core.exception.UserSlugTakenException
+import com.fancia.backend.shared.user.core.support.DefaultUserSlug
 import com.fancia.backend.user.core.entity.UserSlugHistory
 import com.fancia.backend.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.UserSlugHistoryRepository
@@ -28,9 +29,15 @@ class UserSlugService(
                 "Use 3–30 lowercase letters, numbers, and hyphens. Must start with a letter or number.",
             )
         }
-        if (handle in RESERVED_HANDLES) {
+        if (handle in DefaultUserSlug.RESERVED_HANDLES) {
             throw UserSlugInvalidException("This profile URL is reserved")
         }
+    }
+
+    fun assignDefaultSlugIfMissing(user: User): Boolean {
+        if (!user.slug.isNullOrBlank()) return false
+        user.slug = DefaultUserSlug.generate(user) { isTaken(it, user.id) }
+        return true
     }
 
     fun isHandleAvailable(handle: String, excludeUserId: UUID? = null): Boolean {
@@ -106,41 +113,5 @@ class UserSlugService(
     companion object {
         const val COOLDOWN_DAYS = 180L
         private val HANDLE_PATTERN = Regex("^[a-z0-9][a-z0-9-]{2,29}$")
-        private val RESERVED_HANDLES = setOf(
-            "profile",
-            "profiles",
-            "settings",
-            "api",
-            "admin",
-            "events",
-            "event",
-            "venues",
-            "venue",
-            "groups",
-            "group",
-            "login",
-            "signup",
-            "sign-up",
-            "register",
-            "help",
-            "terms",
-            "privacy",
-            "discover",
-            "messages",
-            "friends",
-            "calendar",
-            "smart-match",
-            "create-event",
-            "create-venue",
-            "create-group",
-            "me",
-            "email",
-            "handles",
-            "handle",
-            "users",
-            "user",
-            "www",
-            "r",
-        )
     }
 }

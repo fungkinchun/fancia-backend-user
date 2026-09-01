@@ -22,13 +22,13 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/referrals")
-@Tag(name = "Referrals", description = "Refer-a-friend claim and listing")
+@Tag(name = "Referrals", description = "Refer-a-friend claim and successful redeems")
 @SecurityRequirement(name = "bearerAuth")
 class ReferralController(
     private val referralService: ReferralService,
 ) {
     @GetMapping
-    @Operation(summary = "List successful referrals for the signed-in user")
+    @Operation(summary = "List successful referral redeems for the signed-in user")
     fun list(
         @AuthenticationPrincipal jwt: Jwt,
         @PageableDefault(size = 20) pageable: Pageable,

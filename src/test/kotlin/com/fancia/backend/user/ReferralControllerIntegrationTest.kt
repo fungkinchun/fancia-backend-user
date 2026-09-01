@@ -113,10 +113,9 @@ class ReferralControllerIntegrationTest(
         )
     }
 
-    test("should list successful referrals for signed-in referrer") {
+    test("should list successful redeems for signed-in referrer") {
         val referrer = registerUser(firstName = "Carol", lastName = "Referrer")
-        val handle = "carol-${UUID.randomUUID().toString().take(8)}"
-        setSlug(referrer.id!!, handle)
+        val handle = userRepository.findById(referrer.id!!).orElseThrow().slug!!
 
         mockMvc
             .get("/api/referrals") {
@@ -126,7 +125,6 @@ class ReferralControllerIntegrationTest(
             .andExpect {
                 status { isOk() }
                 jsonPath("$.totalElements", `is`(0))
-                jsonPath("$.content", `is`(emptyList<Any>()))
             }
 
         val referee = registerUser()
@@ -150,6 +148,8 @@ class ReferralControllerIntegrationTest(
                 status { isOk() }
                 jsonPath("$.totalElements", `is`(1))
                 jsonPath("$.content[0].referrerSlug", `is`(handle))
+                jsonPath("$.content[0].refereeUserId", `is`(referee.id.toString()))
+                jsonPath("$.content[0].rewardedAt", `is`(notNullValue()))
             }
     }
 
