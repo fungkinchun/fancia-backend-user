@@ -23,6 +23,7 @@ import org.springframework.http.MediaType.APPLICATION_JSON
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -110,6 +111,46 @@ class ReferralControllerIntegrationTest(
                         ),
                 ),
         )
+    }
+
+    test("should list successful referrals for signed-in referrer") {
+        val referrer = registerUser(firstName = "Carol", lastName = "Referrer")
+        val handle = "carol-${UUID.randomUUID().toString().take(8)}"
+        setSlug(referrer.id!!, handle)
+
+        mockMvc
+            .get("/api/referrals") {
+                with(jwtFor(referrer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.totalElements", `is`(0))
+                jsonPath("$.content", `is`(emptyList<Any>()))
+            }
+
+        val referee = registerUser()
+        stubReferralPremiumGrant(referee.id!!)
+
+        mockMvc
+            .post("/api/referrals/claim") {
+                with(jwtFor(referee.id!!))
+                content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
+                contentType = APPLICATION_JSON
+                accept = APPLICATION_JSON
+            }
+            .andExpect { status { isOk() } }
+
+        mockMvc
+            .get("/api/referrals") {
+                with(jwtFor(referrer.id!!))
+                accept = APPLICATION_JSON
+            }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.totalElements", `is`(1))
+                jsonPath("$.content[0].referrerSlug", `is`(handle))
+            }
     }
 
     test("should claim referral premium for a new signup") {

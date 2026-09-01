@@ -4,6 +4,7 @@ import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationExce
 import com.fancia.backend.shared.user.core.dto.ClaimReferralRequest
 import com.fancia.backend.shared.user.core.dto.ClaimReferralResponse
 import com.fancia.backend.shared.user.core.dto.GrantReferralPremiumRequest
+import com.fancia.backend.shared.user.core.dto.ReferralResponse
 import com.fancia.backend.shared.user.core.exception.ReferralAlreadyClaimedException
 import com.fancia.backend.shared.user.core.exception.ReferralNotEligibleException
 import com.fancia.backend.shared.user.core.exception.ReferralNotFoundException
@@ -16,6 +17,8 @@ import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.PaymentInternalClient
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -30,6 +33,23 @@ class ReferralService(
     private val paymentInternalClient: PaymentInternalClient,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    @Transactional(readOnly = true)
+    fun list(jwt: Jwt, pageable: Pageable): Page<ReferralResponse> {
+        val referrerId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+
+        return referralRepository
+            .findByReferrerUserIdOrderByRewardedAtDesc(referrerId, pageable)
+            .map { referral ->
+                ReferralResponse(
+                    id = referral.id!!,
+                    refereeUserId = referral.refereeUserId!!,
+                    referrerSlug = referral.referrerSlug,
+                    rewardedAt = referral.rewardedAt,
+                )
+            }
+    }
 
     @Transactional
     fun claim(jwt: Jwt, request: ClaimReferralRequest): ClaimReferralResponse {
