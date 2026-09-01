@@ -140,6 +140,7 @@ class UserSlugService(
             "users",
             "user",
             "www",
+            "r",
         )
     }
 }

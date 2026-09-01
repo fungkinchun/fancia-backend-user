@@ -105,6 +105,8 @@ spring:
             url: ${EVENT_SERVICE_URL:#{null}}
           event-internal-service:
             url: ${EVENT_INTERNAL_SERVICE_URL:#{null}}
+          payment-internal-service:
+            url: ${PAYMENT_INTERNAL_SERVICE_URL:#{null}}
   kafka:
     producer:
       key-serializer: org.apache.kafka.common.serialization.UUIDSerializer
