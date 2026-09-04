@@ -22,7 +22,7 @@ class UserSlugService(
 
     fun validateHandle(handle: String) {
         if (handle.isBlank()) {
-            throw UserSlugInvalidException("Profile URL handle is required")
+            throw UserSlugInvalidException("Slug is required")
         }
         if (!HANDLE_PATTERN.matches(handle)) {
             throw UserSlugInvalidException(
@@ -30,7 +30,7 @@ class UserSlugService(
             )
         }
         if (handle in DefaultUserSlug.RESERVED_HANDLES) {
-            throw UserSlugInvalidException("This profile URL is reserved")
+            throw UserSlugInvalidException("This slug is reserved")
         }
     }
 
@@ -72,10 +72,11 @@ class UserSlugService(
 
         if (currentSlug != null) {
             val changedAt = user.slugChangedAt
-                ?: throw UserSlugChangeCooldownException(LocalDateTime.now().plusDays(COOLDOWN_DAYS))
-            val nextAllowed = changedAt.plusDays(COOLDOWN_DAYS)
-            if (LocalDateTime.now().isBefore(nextAllowed)) {
-                throw UserSlugChangeCooldownException(nextAllowed)
+            if (changedAt != null) {
+                val nextAllowed = changedAt.plusDays(COOLDOWN_DAYS)
+                if (LocalDateTime.now().isBefore(nextAllowed)) {
+                    throw UserSlugChangeCooldownException(nextAllowed)
+                }
             }
         }
 
