@@ -4,7 +4,6 @@ import org.mockito.Mockito.mock
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
-import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.test.context.DynamicPropertyRegistrar
 import org.testcontainers.containers.PostgreSQLContainer
@@ -44,9 +43,6 @@ class TestConfig {
     fun jwtDecoder(): JwtDecoder = mock()
 
     @Bean
-    fun javaMailSender(): JavaMailSender = mock()
-
-    @Bean
     fun wiremockProperties(wiremock: WireMockContainer): DynamicPropertyRegistrar {
         return DynamicPropertyRegistrar { registry ->
             registry.add("spring.cloud.openfeign.client.config.interestgroup-service.url") {
@@ -59,6 +55,9 @@ class TestConfig {
                 wiremock.baseUrl
             }
             registry.add("spring.cloud.openfeign.client.config.payment-internal-service.url") {
+                wiremock.baseUrl
+            }
+            registry.add("spring.cloud.openfeign.client.config.notification-internal-service.url") {
                 wiremock.baseUrl
             }
             registry.add("spring.flyway.placeholders.gis_admin_password") { "test-gis-admin" }

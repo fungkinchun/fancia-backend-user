@@ -1,5 +1,6 @@
 package com.fancia.backend.user.core.service
 
+import tools.jackson.core.type.TypeReference
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
 import com.fancia.backend.shared.common.tag.core.dto.CreateTagsRequest
 import com.fancia.backend.shared.common.tag.core.dto.TagItemRequest
@@ -27,10 +28,10 @@ import com.fancia.backend.shared.user.core.support.PremiumLimits
 import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.config.ApplicationProperties
+import com.fancia.backend.shared.common.redis.CachedPage
+import com.fancia.backend.shared.common.redis.RedisQueryCache
 import com.fancia.backend.user.core.event.PasswordResetTokenCreatedEvent
 import com.fancia.backend.user.core.event.UserCreatedEvent
-import com.fancia.backend.user.core.job.SendResetPasswordEmailJob
-import com.fancia.backend.user.core.job.SendWelcomeEmailJob
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
 import com.fancia.backend.user.mapper.toProfileResponse
 import com.fancia.backend.user.mapper.toSmartMatchPerson
@@ -40,9 +41,14 @@ import com.fancia.backend.user.core.repository.VerificationCodeRepository
 import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.CommonServiceClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
+import com.fancia.backend.user.external.NotificationInternalClient
+import com.fancia.backend.shared.notification.core.dto.SendPasswordResetEmailRequest
+import com.fancia.backend.shared.notification.core.dto.SendWelcomeEmailRequest
 import com.fancia.backend.user.mapper.toDto
 import com.fancia.backend.user.mapper.toEntity
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -53,6 +59,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
+import java.time.Duration
 import java.util.*
 
 @Service
@@ -65,11 +72,14 @@ class UserService(
     private val applicationEventPublisher: ApplicationEventPublisher,
     private val interestGroupServiceClient: InterestGroupServiceClient,
     private val commonServiceClient: CommonServiceClient,
+    private val notificationInternalClient: NotificationInternalClient,
     private val applicationProperties: ApplicationProperties,
     private val smartMatchRepository: SmartMatchRepository,
     private val userErasureService: UserErasureService,
     private val userSlugService: UserSlugService,
+    private val redisQueryCache: ObjectProvider<RedisQueryCache>,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     fun findByEmail(email: String): ProfileResponse {
         val user = userRepository.findByEmail(email)
             ?: throw UserWithEmailNotFoundException(email)
@@ -85,13 +95,28 @@ class UserService(
     }
 
     fun findById(id: UUID): ProfileResponse? {
-        val user = userRepository.findById(id).orElse(null) ?: return null
-        return user.toProfileResponse()
+        val cache = redisQueryCache.ifAvailable
+            ?: return userRepository.findById(id).orElse(null)?.toProfileResponse()
+        val boxed = cache.getOrLoad(
+            profileKey(id),
+            PROFILE_TTL,
+            object : TypeReference<CachedProfile>() {},
+        ) {
+            CachedProfile(userRepository.findById(id).orElse(null)?.toProfileResponse())
+        }
+        return boxed.value
     }
 
     fun getUserResponseById(id: UUID): UserResponse {
-        val user = userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }
-        return user.toDto()
+        val cache = redisQueryCache.ifAvailable
+            ?: return userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }.toDto()
+        return cache.getOrLoad(
+            userResponseKey(id),
+            PROFILE_TTL,
+            object : TypeReference<UserResponse>() {},
+        ) {
+            userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }.toDto()
+        }
     }
 
     fun findByIdOrSlug(ref: String): ProfileResponse? {
@@ -109,7 +134,9 @@ class UserService(
         val user = userRepository.findById(id).orElseThrow { UserWithIdNotFoundException(id.toString()) }
         user.premiumActive = request.premiumActive
         user.premiumExpiresAt = request.premiumExpiresAt
-        return userRepository.save(user).toDto()
+        val saved = userRepository.save(user).toDto()
+        invalidateUserCaches(id)
+        return saved
     }
 
     @Transactional
@@ -131,8 +158,21 @@ class UserService(
     fun sendVerificationEmail(event: UserCreatedEvent) {
         val user =
             userRepository.findById(event.id).orElseThrow { UserWithIdNotFoundException(event.id.toString()) }
-        user.id?.let {
-            SendWelcomeEmailJob.scheduleJob(it)
+        val verificationCode = verificationCodeRepository.findByUserId(event.id) ?: return
+        if (verificationCode.emailSent) return
+        val email = user.email ?: return
+        try {
+            notificationInternalClient.sendWelcomeEmail(
+                SendWelcomeEmailRequest(
+                    to = email,
+                    firstName = user.firstName?.takeIf { it.isNotBlank() } ?: "there",
+                    verificationLink = "${applicationProperties.baseUrl}/users/verify-email?token=${verificationCode.code}",
+                ),
+            )
+            verificationCode.emailSent = true
+            verificationCodeRepository.save(verificationCode)
+        } catch (ex: Exception) {
+            log.warn("Failed to send welcome email for user {}", event.id, ex)
         }
     }
 
@@ -163,8 +203,21 @@ class UserService(
         val passwordResetToken =
             passwordResetTokenRepository.findById(event.id)
                 .orElseThrow { PasswordResetTokenNotFoundException(event.id.toString()) }
-        passwordResetToken.id?.let {
-            SendResetPasswordEmailJob.scheduleJob(it)
+        if (passwordResetToken.emailSent) return
+        val user = passwordResetToken.user ?: return
+        val email = user.email ?: return
+        try {
+            notificationInternalClient.sendPasswordResetEmail(
+                SendPasswordResetEmailRequest(
+                    to = email,
+                    firstName = user.firstName,
+                    resetLink = "${applicationProperties.baseUrl}/auth/reset-password?token=${passwordResetToken.token}",
+                ),
+            )
+            passwordResetToken.onEmailSent()
+            passwordResetTokenRepository.save(passwordResetToken)
+        } catch (ex: Exception) {
+            log.warn("Failed to send password reset email for token {}", event.id, ex)
         }
     }
 
@@ -208,7 +261,7 @@ class UserService(
                 }
             }
             userRepository.save(it).toDto()
-        }
+        }.also { invalidateUserCaches(currentUserId) }
     }
 
     @Transactional
@@ -219,7 +272,7 @@ class UserService(
         val settings = ensureUserSettings(user)
         request.toEntity(user, settings)
         request.slug?.let { userSlugService.applySlugChange(user, it) }
-        return userRepository.save(user).toDto()
+        return userRepository.save(user).toDto().also { invalidateUserCaches(currentUserId) }
     }
 
     @Transactional
@@ -230,6 +283,7 @@ class UserService(
         }
         if (usersWithTag.isNotEmpty()) {
             userRepository.saveAll(usersWithTag)
+            usersWithTag.mapNotNull { it.id }.forEach { invalidateUserCaches(it) }
         }
     }
 
@@ -277,6 +331,8 @@ class UserService(
         }
         userErasureService.erase(user)
         userRepository.delete(user)
+        invalidateUserCaches(requestId)
+        invalidateSmartMatchDeck(requestId)
         return requestId
     }
 
@@ -287,6 +343,27 @@ class UserService(
         if (!currentUser.smartMatchEligible()) {
             return PageImpl(emptyList(), pageable, 0)
         }
+        val isPremium = hasPremiumAccess(jwt, currentUser)
+        val cache = redisQueryCache.ifAvailable
+        if (cache != null) {
+            val key = "$DECK_PREFIX$currentUserId:$isPremium:${pageable.pageNumber}:${pageable.pageSize}"
+            val cached = cache.getOrLoad(
+                key,
+                DECK_TTL,
+                object : TypeReference<CachedPage<SmartMatchPersonResponse>>() {},
+            ) {
+                CachedPage.from(loadSmartMatchDeck(currentUserId, isPremium, pageable))
+            }
+            return cached.toPage(pageable)
+        }
+        return loadSmartMatchDeck(currentUserId, isPremium, pageable)
+    }
+
+    private fun loadSmartMatchDeck(
+        currentUserId: UUID,
+        isPremium: Boolean,
+        pageable: Pageable,
+    ): Page<SmartMatchPersonResponse> {
         val batchRows = smartMatchRepository.findByFirstUserIdAndFirstUserLikedIsNullOrderByRankAsc(currentUserId)
         if (batchRows.isEmpty()) {
             return PageImpl(emptyList(), pageable, 0)
@@ -307,7 +384,6 @@ class UserService(
         val usersById = userRepository.findAllById(targetIds)
             .filter { it.id != null && it.smartMatchEligible() }
             .associateBy { it.id!! }
-        val isPremium = hasPremiumAccess(jwt, currentUser)
         val deckLimit = PremiumLimits.smartMatchDeckSize(isPremium)
         val ordered = targetIds.mapNotNull { usersById[it] }.take(deckLimit)
         val pageContent = ordered
@@ -397,4 +473,28 @@ class UserService(
 
     private fun otherUserIds(rows: List<SmartMatch>, currentUserId: UUID): List<UUID> =
         rows.mapNotNull { row -> row.otherUserId(currentUserId) }.distinct()
+
+    private fun profileKey(id: UUID) = "$PROFILE_PREFIX$id"
+    private fun userResponseKey(id: UUID) = "$USER_RESPONSE_PREFIX$id"
+
+    fun invalidateUserCaches(userId: UUID) {
+        val cache = redisQueryCache.ifAvailable ?: return
+        cache.evict(profileKey(userId))
+        cache.evict(userResponseKey(userId))
+        invalidateSmartMatchDeck(userId)
+    }
+
+    fun invalidateSmartMatchDeck(userId: UUID) {
+        redisQueryCache.ifAvailable?.evictByPrefix("$DECK_PREFIX$userId:")
+    }
+
+    private data class CachedProfile(val value: ProfileResponse? = null)
+
+    companion object {
+        private const val PROFILE_PREFIX = "user:profile:"
+        private const val USER_RESPONSE_PREFIX = "user:response:"
+        private const val DECK_PREFIX = "user:smartmatch:deck:"
+        private val PROFILE_TTL = Duration.ofMinutes(3)
+        private val DECK_TTL = Duration.ofMinutes(5)
+    }
 }

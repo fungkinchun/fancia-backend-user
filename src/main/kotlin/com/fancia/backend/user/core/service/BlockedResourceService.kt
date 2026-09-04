@@ -1,5 +1,6 @@
 package com.fancia.backend.user.core.service
 
+import tools.jackson.core.type.TypeReference
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
 import com.fancia.backend.shared.common.moderation.core.dto.BlockedResourceResponse
 import com.fancia.backend.shared.common.moderation.core.dto.BlockedResourcesGroupedResponse
@@ -9,18 +10,23 @@ import com.fancia.backend.shared.common.moderation.core.entity.BlockedResourceId
 import com.fancia.backend.shared.common.moderation.core.enums.BlockedResourceType
 import com.fancia.backend.shared.common.moderation.core.exception.SelfBlockException
 import com.fancia.backend.shared.common.moderation.core.exception.UnsupportedBlockedResourceTypeException
+import com.fancia.backend.shared.common.redis.CacheKeys
+import com.fancia.backend.shared.common.redis.RedisQueryCache
 import com.fancia.backend.user.core.repository.BlockedResourceRepository
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
 import java.util.UUID
 
 @Service
 class BlockedResourceService(
     private val blockedResourceRepository: BlockedResourceRepository,
     private val chatService: ChatService,
+    private val redisQueryCache: ObjectProvider<RedisQueryCache>,
 ) {
     @Transactional
     fun block(request: CreateBlockedResourceRequest, jwt: Jwt): BlockedResourceResponse {
@@ -39,6 +45,7 @@ class BlockedResourceService(
         if (request.resourceType == BlockedResourceType.USER && existing == null) {
             chatService.muteUser(userId, request.resourceId)
         }
+        invalidateBlockedCaches(userId)
         return saved.toResponse()
     }
 
@@ -54,6 +61,7 @@ class BlockedResourceService(
         if (resourceType == BlockedResourceType.USER) {
             chatService.unmuteUser(userId, resourceId)
         }
+        invalidateBlockedCaches(userId)
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +85,43 @@ class BlockedResourceService(
         userId: UUID,
         types: Collection<BlockedResourceType> = OWNED_TYPES,
     ): BlockedResourcesGroupedResponse {
+        val cache = redisQueryCache.ifAvailable
+            ?: return loadGrouped(userId, types)
+        val typeKey = CacheKeys.hash(types.map { it.name })
+        val key = "$BLOCKED_GROUPED_PREFIX$userId:$typeKey"
+        return cache.getOrLoad(
+            key,
+            BLOCKED_TTL,
+            object : TypeReference<BlockedResourcesGroupedResponse>() {},
+        ) {
+            loadGrouped(userId, types)
+        }
+    }
+
+    @Transactional(readOnly = true)
+    fun blockedIds(userId: UUID, type: BlockedResourceType): Set<UUID> {
+        val cache = redisQueryCache.ifAvailable
+            ?: return loadBlockedIds(userId, type)
+        val key = "$BLOCKED_IDS_PREFIX$userId:${type.name}"
+        return cache.getOrLoad(
+            key,
+            BLOCKED_TTL,
+            object : TypeReference<Set<UUID>>() {},
+        ) {
+            loadBlockedIds(userId, type)
+        }
+    }
+
+    fun validateOwnedType(resourceType: BlockedResourceType) {
+        if (resourceType !in OWNED_TYPES) {
+            throw UnsupportedBlockedResourceTypeException()
+        }
+    }
+
+    private fun loadGrouped(
+        userId: UUID,
+        types: Collection<BlockedResourceType>,
+    ): BlockedResourcesGroupedResponse {
         val rows = blockedResourceRepository.findAllByIdUserIdAndIdResourceTypeIn(userId, types)
         val grouped = rows
             .groupBy { it.id.resourceType }
@@ -84,16 +129,15 @@ class BlockedResourceService(
         return BlockedResourcesGroupedResponse(blocked = grouped)
     }
 
-    @Transactional(readOnly = true)
-    fun blockedIds(userId: UUID, type: BlockedResourceType): Set<UUID> =
+    private fun loadBlockedIds(userId: UUID, type: BlockedResourceType): Set<UUID> =
         blockedResourceRepository.findAllByIdUserIdAndIdResourceTypeIn(userId, listOf(type))
             .map { it.id.resourceId }
             .toSet()
 
-    fun validateOwnedType(resourceType: BlockedResourceType) {
-        if (resourceType !in OWNED_TYPES) {
-            throw UnsupportedBlockedResourceTypeException()
-        }
+    private fun invalidateBlockedCaches(userId: UUID) {
+        val cache = redisQueryCache.ifAvailable ?: return
+        cache.evictByPrefix("$BLOCKED_GROUPED_PREFIX$userId:")
+        cache.evictByPrefix("$BLOCKED_IDS_PREFIX$userId:")
     }
 
     private fun currentUserId(jwt: Jwt): UUID =
@@ -113,5 +157,8 @@ class BlockedResourceService(
             BlockedResourceType.COMMENT,
             BlockedResourceType.TAG,
         )
+        private const val BLOCKED_GROUPED_PREFIX = "user:blocked:grouped:"
+        private const val BLOCKED_IDS_PREFIX = "user:blocked:ids:"
+        private val BLOCKED_TTL = Duration.ofMinutes(3)
     }
 }

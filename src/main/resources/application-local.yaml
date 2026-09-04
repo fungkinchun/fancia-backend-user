@@ -5,6 +5,12 @@ spring:
   config:
     import:
       - optional:file:.env[.properties]
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration
   security:
     oauth2:
       resourceserver:
@@ -38,20 +44,7 @@ spring:
               create-source: metadata
     hibernate:
       ddl-auto: create
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${SMTP_USERNAME}
-    password: ${SMTP_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          ssl:
-            trust: smtp.gmail.com
+
   cloud:
     aws:
       secretsmanager:
@@ -97,6 +90,10 @@ spring:
             url: ${EVENT_INTERNAL_SERVICE_URL:#{null}}
           payment-internal-service:
             url: ${PAYMENT_INTERNAL_SERVICE_URL:#{null}}
+          notification-service:
+            url: ${NOTIFICATION_SERVICE_URL:#{null}}
+          notification-internal-service:
+            url: ${NOTIFICATION_INTERNAL_SERVICE_URL:#{null}}
   kafka:
     listener:
       auto-startup: false
@@ -126,9 +123,6 @@ app:
     base-url: ${BUCKET_ENDPOINT}
     region: ${AWS_REGION}
     storage-class: STANDARD
-  firebase:
-    enabled: false
-    credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
   stream:
     enabled: ${STREAM_ENABLED:false}
     api-key: ${STREAM_API_KEY:}

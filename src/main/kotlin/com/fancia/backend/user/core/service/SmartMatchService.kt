@@ -7,11 +7,15 @@ import com.fancia.backend.shared.user.core.dto.UpdateSmartMatchRequest
 import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.*
+import com.fancia.backend.shared.common.redis.RedisQueryCache
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.user.external.NotificationInternalClient
 import com.fancia.backend.user.mapper.toDto
+import com.fancia.backend.shared.notification.core.dto.SendPushNotificationRequest
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,8 +26,9 @@ import java.util.*
 class SmartMatchService(
     private val smartMatchRepository: SmartMatchRepository,
     private val userRepository: UserRepository,
-    private val firebaseCloudMessagingService: FirebaseCloudMessagingService,
+    private val notificationInternalClient: NotificationInternalClient,
     private val chatService: ChatService,
+    private val redisQueryCache: ObjectProvider<RedisQueryCache>,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -64,6 +69,7 @@ class SmartMatchService(
                 firstUserLiked = saved.firstUserLiked,
                 secondUserLiked = saved.secondUserLiked,
             )
+            invalidateDecks(currentUserId, otherUserId)
             return saved.toDto()
         }
         val smartMatch = SmartMatch().apply {
@@ -81,6 +87,7 @@ class SmartMatchService(
             firstUserLiked = liked,
             secondUserLiked = null,
         )
+        invalidateDecks(currentUserId, otherUserId)
         return saved.toDto()
     }
 
@@ -121,7 +128,13 @@ class SmartMatchService(
             firstUserLiked = saved.firstUserLiked,
             secondUserLiked = saved.secondUserLiked,
         )
+        invalidateDecks(firstUserId, secondUserId)
         return saved.toDto()
+    }
+
+    private fun invalidateDecks(vararg userIds: UUID) {
+        val cache = redisQueryCache.ifAvailable ?: return
+        userIds.forEach { cache.evictByPrefix("user:smartmatch:deck:$it:") }
     }
 
     private fun notifyAfterFlagsChanged(
@@ -171,13 +184,26 @@ class SmartMatchService(
     }
 
     private fun notifyLike(recipientId: UUID, actorId: UUID) {
-        val recipient = userRepository.findById(recipientId).orElse(null) ?: return
+        if (!userRepository.existsById(recipientId)) return
         val actorName = displayName(userRepository.findById(actorId).orElse(null))
-        firebaseCloudMessagingService.sendSmartMatchLikeNotification(
-            recipient = recipient,
-            actorName = actorName,
-            actorUserId = actorId,
-        )
+        try {
+            notificationInternalClient.sendPush(
+                SendPushNotificationRequest(
+                    userId = recipientId,
+                    title = "New like",
+                    body = "$actorName liked your profile",
+                    type = "SMART_MATCH_LIKE",
+                    path = "/smart-match?focus=matched&userId=$actorId",
+                    data = mapOf(
+                        "actorUserId" to actorId.toString(),
+                        "focus" to "matched",
+                    ),
+                    preference = "match",
+                ),
+            )
+        } catch (ex: Exception) {
+            log.warn("Failed to send smart match like push to {}", recipientId, ex)
+        }
     }
 
     private fun notifyMutualMatch(firstUserId: UUID, secondUserId: UUID) {
@@ -187,18 +213,44 @@ class SmartMatchService(
         val secondName = displayName(secondUser)
 
         if (firstUser != null) {
-            firebaseCloudMessagingService.sendSmartMatchMutualNotification(
-                recipient = firstUser,
-                actorName = secondName,
-                actorUserId = secondUserId,
-            )
+            try {
+                notificationInternalClient.sendPush(
+                    SendPushNotificationRequest(
+                        userId = firstUserId,
+                        title = "It's a match!",
+                        body = "You and $secondName liked each other. Say hello!",
+                        type = "SMART_MATCH_MUTUAL",
+                        path = "/smart-match?focus=matched&userId=$secondUserId",
+                        data = mapOf(
+                            "actorUserId" to secondUserId.toString(),
+                            "focus" to "matched",
+                        ),
+                        preference = "match",
+                    ),
+                )
+            } catch (ex: Exception) {
+                log.warn("Failed to send smart match mutual push to {}", firstUserId, ex)
+            }
         }
         if (secondUser != null) {
-            firebaseCloudMessagingService.sendSmartMatchMutualNotification(
-                recipient = secondUser,
-                actorName = firstName,
-                actorUserId = firstUserId,
-            )
+            try {
+                notificationInternalClient.sendPush(
+                    SendPushNotificationRequest(
+                        userId = secondUserId,
+                        title = "It's a match!",
+                        body = "You and $firstName liked each other. Say hello!",
+                        type = "SMART_MATCH_MUTUAL",
+                        path = "/smart-match?focus=matched&userId=$firstUserId",
+                        data = mapOf(
+                            "actorUserId" to firstUserId.toString(),
+                            "focus" to "matched",
+                        ),
+                        preference = "match",
+                    ),
+                )
+            } catch (ex: Exception) {
+                log.warn("Failed to send smart match mutual push to {}", secondUserId, ex)
+            }
         }
     }
 

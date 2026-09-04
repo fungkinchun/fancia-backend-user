@@ -34,6 +34,15 @@ interface ChatChannelRepository : JpaRepository<ChatChannel, UUID> {
 
     @Query(
         """
+        SELECT DISTINCT c FROM ChatChannel c
+        LEFT JOIN FETCH c.members
+        WHERE c.channelId = :channelId
+        """,
+    )
+    fun findByChannelIdWithMembers(@Param("channelId") channelId: String): ChatChannel?
+
+    @Query(
+        """
         SELECT c FROM ChatChannel c
         WHERE c.firstUserId = :userId
            OR c.secondUserId = :userId
