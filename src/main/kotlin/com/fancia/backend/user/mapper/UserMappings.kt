@@ -27,7 +27,6 @@ fun User.toDto(): UserResponse =
         gender = gender,
         visibility = visibility,
         tags = tags,
-        blacklistedIds = blacklistedIds,
         privacy = settings?.privacy ?: UserPrivacySettings(),
         notifications = settings?.notifications ?: UserNotificationSettings(),
         connectedAccounts = connectedAccounts

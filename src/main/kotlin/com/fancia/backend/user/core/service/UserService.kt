@@ -194,7 +194,6 @@ class UserService(
         val user = userRepository.findById(currentUserId).orElseThrow()
         return request.toEntity(user).let {
             request.tags?.let { tags -> applyTags(it.tags, tags) }
-            request.blacklistTags?.let { tags -> applyBlacklistTags(it.blacklistedIds, tags) }
             applyDeviceSettings(it, request)
             when (val profileImageKey = request.profileImageKey) {
                 null -> Unit
@@ -398,14 +397,4 @@ class UserService(
 
     private fun otherUserIds(rows: List<SmartMatch>, currentUserId: UUID): List<UUID> =
         rows.mapNotNull { row -> row.otherUserId(currentUserId) }.distinct()
-
-    private fun applyBlacklistTags(blacklistedIds: MutableSet<UUID>, requestTags: Set<TagItemRequest>) {
-        blacklistedIds.clear()
-        if (requestTags.isEmpty()) return
-        val resolved = commonServiceClient.createTags(
-            CreateTagsRequest(tags = requestTags.toList()),
-            size = requestTags.size,
-        ).content.mapNotNull { it.id }
-        blacklistedIds.addAll(resolved)
-    }
 }

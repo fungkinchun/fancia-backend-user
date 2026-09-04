@@ -5,6 +5,7 @@ import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
 import com.fancia.backend.user.config.ApplicationProperties
+import com.fancia.backend.user.core.repository.BlockedResourceRepository
 import com.fancia.backend.user.core.repository.ChatChannelRepository
 import com.fancia.backend.user.core.repository.ConnectedAccountRepository
 import com.fancia.backend.user.core.repository.FriendshipRepository
@@ -22,6 +23,7 @@ class UserErasureService(
     private val friendshipRepository: FriendshipRepository,
     private val smartMatchRepository: SmartMatchRepository,
     private val chatChannelRepository: ChatChannelRepository,
+    private val blockedResourceRepository: BlockedResourceRepository,
     private val verificationCodeRepository: VerificationCodeRepository,
     private val passwordResetTokenRepository: PasswordResetTokenRepository,
     private val connectedAccountRepository: ConnectedAccountRepository,
@@ -40,6 +42,7 @@ class UserErasureService(
         friendshipRepository.deleteAll(friendshipRepository.findAllForUser(userId))
         smartMatchRepository.deleteAll(smartMatchRepository.findAllForUser(userId))
         chatChannelRepository.deleteAll(chatChannelRepository.findAllForUser(userId))
+        blockedResourceRepository.deleteAll(blockedResourceRepository.findAllByIdUserId(userId))
         passwordResetTokenRepository.deleteAll(passwordResetTokenRepository.findAllByUserId(userId))
         connectedAccountRepository.deleteAll(connectedAccountRepository.findAllByUserId(userId))
         verificationCodeRepository.findByUserId(userId)?.let { verificationCodeRepository.delete(it) }
@@ -62,7 +65,6 @@ class UserErasureService(
         user.premiumActive = false
         user.premiumExpiresAt = null
         user.tags.clear()
-        user.blacklistedIds.clear()
         user.links.clear()
         user.settings = null
 

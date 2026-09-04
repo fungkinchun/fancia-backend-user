@@ -471,6 +471,26 @@ class ChatService(
         }
     }
 
+    fun muteUser(currentUserId: UUID, targetUserId: UUID) {
+        if (!streamChatProperties.enabled) return
+        runCatching {
+            StreamUser.mute()
+                .targetId(targetUserId.toString())
+                .userId(currentUserId.toString())
+                .request()
+        }.onFailure { log.warn("Failed to mute Stream user {} for {}", targetUserId, currentUserId, it) }
+    }
+
+    fun unmuteUser(currentUserId: UUID, targetUserId: UUID) {
+        if (!streamChatProperties.enabled) return
+        runCatching {
+            StreamUser.unmute()
+                .targetId(targetUserId.toString())
+                .userId(currentUserId.toString())
+                .request()
+        }.onFailure { log.warn("Failed to unmute Stream user {} for {}", targetUserId, currentUserId, it) }
+    }
+
     private fun currentUserId(jwt: Jwt): UUID =
         jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
