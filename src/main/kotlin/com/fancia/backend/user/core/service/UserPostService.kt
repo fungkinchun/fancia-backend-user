@@ -77,6 +77,16 @@ class UserPostService(
         return post
     }
 
+    fun delete(userId: UUID, postId: UUID, jwt: Jwt) {
+        val currentUserId = jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
+            ?: throw InvalidAuthenticationException()
+        if (currentUserId != userId) {
+            throw InvalidAuthenticationException()
+        }
+        get(userId, postId, jwt)
+        commonInternalClient.deletePost(postId)
+    }
+
     fun like(userId: UUID, postId: UUID, jwt: Jwt) {
         get(userId, postId, jwt)
         commonInternalClient.likePost(postId)

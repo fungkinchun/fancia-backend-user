@@ -54,6 +54,9 @@ interface CommonInternalClient {
         @RequestBody request: UpdatePostRequest,
     ): PostResponse
 
+    @DeleteMapping("/posts/{postId}")
+    fun deletePost(@PathVariable postId: UUID)
+
     @PostMapping("/posts/{postId}/likes")
     fun likePost(@PathVariable postId: UUID)
 
