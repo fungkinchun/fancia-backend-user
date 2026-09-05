@@ -168,7 +168,7 @@ class UserService(
                 SendWelcomeEmailRequest(
                     to = email,
                     firstName = user.firstName?.takeIf { it.isNotBlank() } ?: "there",
-                    verificationLink = "${applicationProperties.baseUrl}/users/verify-email?token=${verificationCode.code}",
+                    verificationLink = "https://api.${domainName.trimEnd('/')}/user/api/users/verify-email?token=${verificationCode.code}",
                 ),
             )
             verificationCode.emailSent = true

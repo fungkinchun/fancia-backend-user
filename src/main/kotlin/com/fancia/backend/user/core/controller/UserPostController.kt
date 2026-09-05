@@ -64,8 +64,9 @@ class UserPostController(
         @Parameter(description = "Filter by post status (repeatable)")
         status: List<PostStatus>?,
         @PageableDefault(size = 20) pageable: Pageable,
+        @AuthenticationPrincipal jwt: Jwt?,
     ): ResponseEntity<Page<PostResponse>> {
-        return ResponseEntity.ok(userPostService.list(userId, kind, status, pageable))
+        return ResponseEntity.ok(userPostService.list(userId, kind, status, pageable, jwt))
     }
 
     @Operation(summary = "Get post on user profile")
@@ -73,8 +74,9 @@ class UserPostController(
     fun getPost(
         @PathVariable userId: UUID,
         @PathVariable postId: UUID,
+        @AuthenticationPrincipal jwt: Jwt?,
     ): ResponseEntity<PostResponse> {
-        return ResponseEntity.ok(userPostService.get(userId, postId))
+        return ResponseEntity.ok(userPostService.get(userId, postId, jwt))
     }
 
     @Operation(summary = "Update post")

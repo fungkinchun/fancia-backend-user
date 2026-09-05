@@ -71,8 +71,9 @@ class UserCommentController(
         targetId: UUID?,
         @PageableDefault(size = 20)
         pageable: Pageable,
+        @AuthenticationPrincipal jwt: Jwt?,
     ): ResponseEntity<Page<CommentResponse>> {
-        return ResponseEntity.ok(userCommentService.list(userId, targetId ?: userId, pageable))
+        return ResponseEntity.ok(userCommentService.list(userId, targetId ?: userId, pageable, jwt))
     }
 
     @Operation(summary = "Like comment")
