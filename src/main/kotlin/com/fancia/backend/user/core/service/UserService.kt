@@ -49,6 +49,7 @@ import com.fancia.backend.user.mapper.toEntity
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -78,6 +79,7 @@ class UserService(
     private val userErasureService: UserErasureService,
     private val userSlugService: UserSlugService,
     private val redisQueryCache: ObjectProvider<RedisQueryCache>,
+    @Value("\${DOMAIN_NAME}") private val domainName: String,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     fun findByEmail(email: String): ProfileResponse {
@@ -211,7 +213,7 @@ class UserService(
                 SendPasswordResetEmailRequest(
                     to = email,
                     firstName = user.firstName,
-                    resetLink = "${applicationProperties.baseUrl}/auth/reset-password?token=${passwordResetToken.token}",
+                    resetLink = "${siteUrl()}/reset-password?token=${passwordResetToken.token}",
                 ),
             )
             passwordResetToken.onEmailSent()
@@ -235,6 +237,7 @@ class UserService(
                 passwordEncoder.encode(request.password)?.let {
                     user.setPassword(it)
                     userRepository.save(user)
+                    passwordResetTokenRepository.delete(passwordResetToken)
                 } ?: throw InvalidPasswordResetTokenException()
             } ?: throw UserNotFoundException()
         } ?: throw InvalidPasswordResetTokenException()
@@ -487,6 +490,8 @@ class UserService(
     fun invalidateSmartMatchDeck(userId: UUID) {
         redisQueryCache.ifAvailable?.evictByPrefix("$DECK_PREFIX$userId:")
     }
+
+    private fun siteUrl(): String = "https://${domainName.trimEnd('/')}"
 
     private data class CachedProfile(val value: ProfileResponse? = null)
 

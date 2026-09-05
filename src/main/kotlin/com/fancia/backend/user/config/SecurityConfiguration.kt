@@ -41,6 +41,8 @@ class SecurityConfiguration {
             customizer.requestMatchers("/api/friends", "/api/friends/**").authenticated()
             customizer.requestMatchers(HttpMethod.GET, "/api/users/**").permitAll()
             customizer.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+            customizer.requestMatchers(HttpMethod.POST, "/api/users/forgot-password").permitAll()
+            customizer.requestMatchers(HttpMethod.PATCH, "/api/users/reset-password").permitAll()
             customizer.requestMatchers(HttpMethod.PUT, "/internal/users/*/premium").permitAll()
             customizer.requestMatchers(HttpMethod.GET, "/internal/users/*/blocked").permitAll()
             customizer.requestMatchers(HttpMethod.GET, "/internal/users/*").permitAll()

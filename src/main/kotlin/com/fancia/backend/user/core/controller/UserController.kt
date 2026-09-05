@@ -1,7 +1,6 @@
 package com.fancia.backend.user.core.controller
 
 import com.fancia.backend.shared.user.core.dto.*
-import com.fancia.backend.shared.user.core.exception.UserWithEmailNotFoundException
 import com.fancia.backend.shared.user.core.message.UserDeletedEvent
 import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.core.message.UserProducer
@@ -63,9 +62,10 @@ class UserController(
 
     @PostMapping("/forgot-password")
     fun forgotPassword(@RequestBody @Valid req: ForgotPasswordRequest): ResponseEntity<Void> {
-        val email = req.email ?: throw UserWithEmailNotFoundException(email = "")
-        userService.findByEmail(email)
-        userService.forgotPassword(email)
+        val email = req.email?.trim().orEmpty()
+        if (email.isNotEmpty()) {
+            runCatching { userService.forgotPassword(email) }
+        }
         return ResponseEntity.ok().build()
     }
 

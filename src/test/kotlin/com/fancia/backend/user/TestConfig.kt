@@ -61,6 +61,7 @@ class TestConfig {
                 wiremock.baseUrl
             }
             registry.add("spring.flyway.placeholders.gis_admin_password") { "test-gis-admin" }
+            registry.add("DOMAIN_NAME") { "fancia.co.uk" }
             registry.add("spring.jpa.hibernate.ddl-auto") { "none" }
             registry.add("spring.flyway.enabled") { "true" }
             registry.add("spring.cloud.aws.secretsmanager.enabled") { "false" }

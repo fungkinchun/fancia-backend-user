@@ -97,6 +97,7 @@ app:
   application-name: ${PROJECT_NAME}-backend-${REPO_NAME}
   base-url: ${DOMAIN_NAME}/${REPO_NAME}/api
   login-page-url: ${AUTH_SERVICE_URL:auth-service}/login
+  cdn-url: https://cdn.${DOMAIN_NAME}
   s3:
     bucket-name: ${BUCKET_NAME}
     access-key: ${BUCKET_ACCESS_KEY}
