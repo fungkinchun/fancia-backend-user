@@ -1,6 +1,7 @@
 package com.fancia.backend.user.core.service
 
 import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationException
+import com.fancia.backend.shared.notification.core.dto.SendPushNotificationRequest
 import com.fancia.backend.shared.user.core.dto.CreateFriendRequest
 import com.fancia.backend.shared.user.core.dto.FriendshipResponse
 import com.fancia.backend.shared.user.core.dto.FriendshipStatusResponse
@@ -15,8 +16,10 @@ import com.fancia.backend.shared.user.core.exception.FriendshipSelfRequestExcept
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.core.repository.FriendshipRepository
 import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.user.external.NotificationInternalClient
 import com.fancia.backend.user.mapper.toDto
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.security.oauth2.jwt.Jwt
@@ -30,7 +33,10 @@ class FriendService(
     private val friendshipRepository: FriendshipRepository,
     private val userRepository: UserRepository,
     private val chatService: ChatService,
+    private val notificationInternalClient: NotificationInternalClient,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     fun request(@Valid request: CreateFriendRequest, jwt: Jwt): FriendshipResponse {
         val currentUserId = currentUserId(jwt)
@@ -38,7 +44,7 @@ class FriendService(
         if (currentUserId == targetUserId) {
             throw FriendshipSelfRequestException()
         }
-        userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
+        val requester = userRepository.findById(currentUserId).orElseThrow { UserNotFoundException() }
         val target = userRepository.findById(targetUserId).orElseThrow { UserNotFoundException() }
         val allowFriendRequests = target.settings?.privacy?.allowFriendRequests ?: true
         if (!allowFriendRequests) {
@@ -59,7 +65,14 @@ class FriendService(
             status = FriendshipStatus.PENDING
             createdBy = currentUserId
         }
-        return friendshipRepository.save(friendship).toDto()
+        val saved = friendshipRepository.save(friendship).toDto()
+        notifyFriendRequest(
+            recipientId = targetUserId,
+            actorId = currentUserId,
+            actorName = displayName(requester),
+            friendshipId = saved.id,
+        )
+        return saved
     }
 
     @Transactional
@@ -195,4 +208,33 @@ class FriendService(
     private fun currentUserId(jwt: Jwt): UUID =
         jwt.getClaimAsString("userId")?.let { UUID.fromString(it) }
             ?: throw InvalidAuthenticationException()
+
+    private fun notifyFriendRequest(
+        recipientId: UUID,
+        actorId: UUID,
+        actorName: String,
+        friendshipId: UUID?,
+    ) {
+        try {
+            notificationInternalClient.sendPush(
+                SendPushNotificationRequest(
+                    userId = recipientId,
+                    title = "Friend request",
+                    body = "$actorName sent you a friend request",
+                    type = "FRIEND_REQUEST",
+                    path = "/friends",
+                    data = buildMap {
+                        put("actorUserId", actorId.toString())
+                        friendshipId?.let { put("friendshipId", it.toString()) }
+                    },
+                    preference = "messages",
+                ),
+            )
+        } catch (ex: Exception) {
+            log.warn("Failed to send friend request push to {}", recipientId, ex)
+        }
+    }
+
+    private fun displayName(user: com.fancia.backend.shared.user.core.entity.User?): String =
+        user?.firstName?.takeIf { it.isNotBlank() } ?: "Someone"
 }
