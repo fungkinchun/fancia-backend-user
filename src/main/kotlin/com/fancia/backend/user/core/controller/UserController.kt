@@ -43,8 +43,11 @@ class UserController(
     }
 
     @GetMapping("/{ref}")
-    fun getUserByRef(@PathVariable ref: String): ResponseEntity<ProfileResponse> {
-        val user = userService.findByIdOrSlug(ref) ?: return ResponseEntity.notFound().build()
+    fun getUserByRef(
+        @PathVariable ref: String,
+        @AuthenticationPrincipal jwt: Jwt?,
+    ): ResponseEntity<ProfileResponse> {
+        val user = userService.findByIdOrSlug(ref, jwt) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(user)
     }
 

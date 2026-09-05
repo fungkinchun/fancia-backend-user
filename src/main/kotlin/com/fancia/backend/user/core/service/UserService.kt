@@ -28,6 +28,7 @@ import com.fancia.backend.shared.user.core.support.PremiumLimits
 import com.fancia.backend.shared.user.core.support.redactForPublicView
 import com.fancia.backend.shared.user.core.support.smartMatchEligible
 import com.fancia.backend.user.config.ApplicationProperties
+import com.fancia.backend.shared.common.moderation.core.enums.BlockedResourceType
 import com.fancia.backend.shared.common.redis.CachedPage
 import com.fancia.backend.shared.common.redis.RedisQueryCache
 import com.fancia.backend.user.core.event.PasswordResetTokenCreatedEvent
@@ -78,6 +79,7 @@ class UserService(
     private val smartMatchRepository: SmartMatchRepository,
     private val userErasureService: UserErasureService,
     private val userSlugService: UserSlugService,
+    private val blockedResourceService: BlockedResourceService,
     private val redisQueryCache: ObjectProvider<RedisQueryCache>,
     @Value("\${DOMAIN_NAME}") private val domainName: String,
 ) {
@@ -96,7 +98,8 @@ class UserService(
         return user.toDto()
     }
 
-    fun findById(id: UUID): ProfileResponse? {
+    fun findById(id: UUID, jwt: Jwt? = null): ProfileResponse? {
+        if (isBlockedProfile(id, jwt)) return null
         val cache = redisQueryCache.ifAvailable
             ?: return userRepository.findById(id).orElse(null)?.toProfileResponse()
         val boxed = cache.getOrLoad(
@@ -121,9 +124,18 @@ class UserService(
         }
     }
 
-    fun findByIdOrSlug(ref: String): ProfileResponse? {
+    fun findByIdOrSlug(ref: String, jwt: Jwt? = null): ProfileResponse? {
         val user = userSlugService.resolveUser(ref) ?: return null
+        if (isBlockedProfile(user.id, jwt)) return null
         return user.toProfileResponse()
+    }
+
+    private fun isBlockedProfile(targetUserId: UUID?, jwt: Jwt?): Boolean {
+        if (targetUserId == null) return false
+        val viewerId = jwt?.getClaimAsString("userId")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            ?: return false
+        if (viewerId == targetUserId) return false
+        return targetUserId in blockedResourceService.blockedIds(viewerId, BlockedResourceType.USER)
     }
 
     fun isHandleAvailable(handle: String, jwt: Jwt?): Boolean {
