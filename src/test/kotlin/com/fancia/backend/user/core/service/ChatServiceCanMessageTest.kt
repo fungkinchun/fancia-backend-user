@@ -4,11 +4,13 @@ import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.enums.FriendshipStatus
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
+import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.config.StreamChatProperties
 import com.fancia.backend.user.core.repository.ChatChannelRepository
 import com.fancia.backend.user.core.repository.FriendshipRepository
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.user.external.CommonInternalClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -18,18 +20,22 @@ import java.util.UUID
 
 class ChatServiceCanMessageTest : FunSpec({
     val streamChatProperties = StreamChatProperties().apply { enabled = false }
+    val applicationProperties = ApplicationProperties()
     val userRepository = Mockito.mock(UserRepository::class.java)
     val smartMatchRepository = Mockito.mock(SmartMatchRepository::class.java)
     val friendshipRepository = Mockito.mock(FriendshipRepository::class.java)
     val chatChannelRepository = Mockito.mock(ChatChannelRepository::class.java)
     val interestGroupServiceClient = Mockito.mock(InterestGroupServiceClient::class.java)
+    val commonInternalClient = Mockito.mock(CommonInternalClient::class.java)
     val chatService = ChatService(
         streamChatProperties = streamChatProperties,
+        applicationProperties = applicationProperties,
         userRepository = userRepository,
         smartMatchRepository = smartMatchRepository,
         friendshipRepository = friendshipRepository,
         chatChannelRepository = chatChannelRepository,
         interestGroupServiceClient = interestGroupServiceClient,
+        commonInternalClient = commonInternalClient,
     )
 
     val currentUserId = UUID.randomUUID()

@@ -9,4 +9,5 @@ class StreamChatProperties {
     var enabled: Boolean = false
     var apiKey: String = ""
     var apiSecret: String = ""
+    var supportImageUrl: String = ""
 }

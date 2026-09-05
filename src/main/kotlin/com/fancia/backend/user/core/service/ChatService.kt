@@ -16,13 +16,17 @@ import com.fancia.backend.shared.user.core.exception.ChatChannelException
 import com.fancia.backend.shared.user.core.exception.ChatNotConfiguredException
 import com.fancia.backend.shared.user.core.exception.SmartMatchSelfMatchException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
+import com.fancia.backend.shared.common.post.core.enums.PostMediaType
+import com.fancia.backend.shared.common.post.core.enums.PostStatus
+import com.fancia.backend.shared.interestgroup.core.enums.InterestGroupRole
+import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.config.StreamChatProperties
 import com.fancia.backend.user.core.repository.ChatChannelRepository
 import com.fancia.backend.user.core.repository.FriendshipRepository
 import com.fancia.backend.user.core.repository.SmartMatchRepository
 import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.user.external.CommonInternalClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
-import com.fancia.backend.shared.interestgroup.core.enums.InterestGroupRole
 import feign.FeignException
 import io.getstream.chat.java.models.Channel
 import io.getstream.chat.java.models.Channel.ChannelMemberRequestObject
@@ -30,6 +34,7 @@ import io.getstream.chat.java.models.Channel.ChannelRequestObject
 import io.getstream.chat.java.models.User.UserRequestObject
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.domain.PageRequest
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -40,11 +45,13 @@ import io.getstream.chat.java.models.User as StreamUser
 @Service
 class ChatService(
     private val streamChatProperties: StreamChatProperties,
+    private val applicationProperties: ApplicationProperties,
     private val userRepository: UserRepository,
     private val smartMatchRepository: SmartMatchRepository,
     private val friendshipRepository: FriendshipRepository,
     private val chatChannelRepository: ChatChannelRepository,
     private val interestGroupServiceClient: InterestGroupServiceClient,
+    private val commonInternalClient: CommonInternalClient,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     fun createToken(jwt: Jwt): ChatTokenResponse {
@@ -247,21 +254,18 @@ class ChatService(
         val builder = UserRequestObject.builder()
             .id(id)
             .name(name)
-        user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { url ->
-            builder.additionalField("image", url)
+        user.profileImageUrl?.takeIf { it.isNotBlank() }?.let { raw ->
+            toPublicAssetUrl(raw)?.let { builder.additionalField("image", it) }
         }
         StreamUser.upsert().user(builder.build()).request()
     }
 
     private fun upsertSupportStreamUser() {
-        StreamUser.upsert()
-            .user(
-                UserRequestObject.builder()
-                    .id(SUPPORT_STREAM_USER_ID)
-                    .name(SUPPORT_DISPLAY_NAME)
-                    .build(),
-            )
-            .request()
+        val builder = UserRequestObject.builder()
+            .id(SUPPORT_STREAM_USER_ID)
+            .name(SUPPORT_DISPLAY_NAME)
+        resolveSupportImageUrl()?.let { builder.additionalField("image", it) }
+        StreamUser.upsert().user(builder.build()).request()
     }
 
     private fun createDirectMessageChannel(currentUserId: UUID, otherUserId: UUID): String {
@@ -286,51 +290,110 @@ class ChatService(
         interestGroupName: String,
     ): String {
         val channel = resolveGroupInquiryChannel(interestGroupId, initiatorUserId, memberIds)
+        val coverImageUrl = resolveFeaturedCoverImageUrl(interestGroupId)
         val dataBuilder = ChannelRequestObject.builder()
             .createdBy(UserRequestObject.builder().id(initiatorUserId.toString()).build())
             .additionalField("kind", "group_inquiry")
             .additionalField("interestGroupId", interestGroupId.toString())
             .additionalField("interestGroupName", interestGroupName)
+        coverImageUrl?.let { dataBuilder.additionalField("image", it) }
         memberIds.forEach { userId ->
             dataBuilder.member(ChannelMemberRequestObject.builder().userId(userId.toString()).build())
         }
         Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
             .data(dataBuilder.build())
             .request()
+        applyChannelImage(channel.channelId, coverImageUrl)
         return channel.channelId
     }
 
     private fun createSupportChannel(currentUserId: UUID): String {
         val channel = resolveSupportChannel(currentUserId)
+        val supportImageUrl = resolveSupportImageUrl()
+        val dataBuilder = ChannelRequestObject.builder()
+            .createdBy(UserRequestObject.builder().id(currentUserId.toString()).build())
+            .member(ChannelMemberRequestObject.builder().userId(currentUserId.toString()).build())
+            .member(ChannelMemberRequestObject.builder().userId(SUPPORT_STREAM_USER_ID).build())
+            .additionalField("kind", "support")
+            .additionalField("name", SUPPORT_DISPLAY_NAME)
+        supportImageUrl?.let { dataBuilder.additionalField("image", it) }
         Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
-            .data(
-                ChannelRequestObject.builder()
-                    .createdBy(UserRequestObject.builder().id(currentUserId.toString()).build())
-                    .member(ChannelMemberRequestObject.builder().userId(currentUserId.toString()).build())
-                    .member(ChannelMemberRequestObject.builder().userId(SUPPORT_STREAM_USER_ID).build())
-                    .additionalField("kind", "support")
-                    .additionalField("name", SUPPORT_DISPLAY_NAME)
-                    .build(),
-            )
+            .data(dataBuilder.build())
             .request()
+        applyChannelImage(channel.channelId, supportImageUrl)
         return channel.channelId
     }
 
     private fun createEventChannel(eventId: UUID, joiningUserId: UUID): String {
         val channel = resolveEventChannel(eventId, joiningUserId)
         val memberIds = channel.members.map { it.userId }.distinct()
+        val coverImageUrl = resolveFeaturedCoverImageUrl(eventId)
         val dataBuilder = ChannelRequestObject.builder()
             .createdBy(UserRequestObject.builder().id(joiningUserId.toString()).build())
             .additionalField("kind", "event")
             .additionalField("eventId", eventId.toString())
             .additionalField("name", "Event chat")
+        coverImageUrl?.let { dataBuilder.additionalField("image", it) }
         memberIds.forEach { userId ->
             dataBuilder.member(ChannelMemberRequestObject.builder().userId(userId.toString()).build())
         }
         Channel.getOrCreate(CHANNEL_TYPE, channel.channelId)
             .data(dataBuilder.build())
             .request()
+        applyChannelImage(channel.channelId, coverImageUrl)
         return channel.channelId
+    }
+
+    private fun resolveFeaturedCoverImageUrl(targetId: UUID): String? =
+        runCatching {
+            val page = commonInternalClient.listPosts(
+                targetId = targetId,
+                kind = null,
+                status = listOf(PostStatus.FEATURED),
+                pageable = PageRequest.of(0, 20),
+            )
+            for (post in page.content) {
+                for (media in post.media.sortedBy { it.sortOrder }) {
+                    if (media.mediaType != PostMediaType.IMAGE) continue
+                    if (media.objectKey.isBlank()) continue
+                    if (isTemporaryAssetKey(media.objectKey)) continue
+                    toPublicAssetUrl(media.objectKey)?.let { return it }
+                }
+            }
+            null
+        }.onFailure { ex ->
+            log.warn("Failed to resolve featured cover for {}: {}", targetId, ex.message)
+        }.getOrNull()
+
+    private fun resolveSupportImageUrl(): String? =
+        streamChatProperties.supportImageUrl.trim().takeIf { it.isNotBlank() }
+
+    private fun toPublicAssetUrl(objectKeyOrUrl: String): String? {
+        val trimmed = objectKeyOrUrl.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
+        val cdn = applicationProperties.cdnUrl?.trimEnd('/') ?: return null
+        val key = trimmed.removePrefix("/")
+        return "$cdn/$key"
+    }
+
+    private fun isTemporaryAssetKey(value: String): Boolean {
+        val path = runCatching {
+            if (value.contains("://")) java.net.URI(value).path else value
+        }.getOrDefault(value)
+        val normalized = path.removePrefix("/")
+        return normalized.startsWith("tmp/") || value.contains("/tmp/")
+    }
+
+    private fun applyChannelImage(channelId: String, imageUrl: String?) {
+        if (imageUrl.isNullOrBlank()) return
+        runCatching {
+            Channel.partialUpdate(CHANNEL_TYPE, channelId)
+                .setValue("image", imageUrl)
+                .request()
+        }.onFailure { ex ->
+            log.warn("Failed to set Stream channel image for {}: {}", channelId, ex.message)
+        }
     }
 
     private fun resolveDirectMessageChannel(firstUserId: UUID, secondUserId: UUID): ChatChannel {

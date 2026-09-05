@@ -139,6 +139,7 @@ app:
     enabled: ${STREAM_ENABLED:false}
     api-key: ${STREAM_API_KEY:}
     api-secret: ${STREAM_API_SECRET:}
+    support-image-url: ${STREAM_SUPPORT_IMAGE_URL:}
   s3:
     bucket-name: ${BUCKET_NAME}
 
