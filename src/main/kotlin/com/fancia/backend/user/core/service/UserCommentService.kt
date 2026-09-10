@@ -7,7 +7,7 @@ import com.fancia.backend.shared.common.core.exception.InvalidAuthenticationExce
 import com.fancia.backend.shared.common.moderation.core.enums.BlockedResourceType
 import com.fancia.backend.shared.common.moderation.core.support.CommentVisibility
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.CommonInternalClient
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

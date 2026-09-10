@@ -5,13 +5,13 @@ import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
 import com.fancia.backend.user.config.ApplicationProperties
-import com.fancia.backend.user.core.repository.BlockedResourceRepository
+import com.fancia.backend.shared.common.moderation.core.repository.BlockedResourceRepository
 import com.fancia.backend.user.core.repository.ChatChannelRepository
 import com.fancia.backend.user.core.repository.ConnectedAccountRepository
 import com.fancia.backend.user.core.repository.FriendshipRepository
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
-import com.fancia.backend.user.core.repository.SmartMatchRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.SmartMatchRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service

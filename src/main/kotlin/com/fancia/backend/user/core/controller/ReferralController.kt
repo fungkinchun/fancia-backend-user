@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/referrals")
+@RequestMapping("/api/v1/referrals")
 @Tag(name = "Referrals", description = "Refer-a-friend claim and successful redeems")
 @SecurityRequirement(name = "bearerAuth")
 class ReferralController(

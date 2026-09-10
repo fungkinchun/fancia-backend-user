@@ -7,8 +7,8 @@ import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.UserSettings
 import com.fancia.backend.shared.user.core.enums.AccountStatus
 import com.fancia.backend.shared.user.core.enums.ProfileVisibility
-import com.fancia.backend.user.core.repository.SmartMatchRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.SmartMatchRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -64,7 +64,7 @@ class SmartMatchControllerIntegrationTest(
     ): UserResponse {
         val password = "Password1a"
         return mockMvc
-            .post("/api/users") {
+            .post("/api/v1/users") {
                 content = jsonMapper.writeValueAsString(
                     mapOf(
                         "email" to email,
@@ -118,7 +118,7 @@ class SmartMatchControllerIntegrationTest(
 
     fun stubCreateTags(tags: List<Pair<UUID, String>>, type: String = "INTEREST") {
         stubFor(
-            post(urlPathEqualTo("/api/tags"))
+            post(urlPathEqualTo("/api/v1/tags"))
                 .willReturn(
                     aResponse()
                         .withStatus(201)
@@ -146,7 +146,7 @@ class SmartMatchControllerIntegrationTest(
 
     fun stubGetTagsByIds(tags: List<Pair<UUID, String>>, type: String = "INTEREST") {
         stubFor(
-            get(urlPathEqualTo("/api/tags/ids"))
+            get(urlPathEqualTo("/api/v1/tags/ids"))
                 .willReturn(
                     aResponse()
                         .withStatus(200)
@@ -168,7 +168,7 @@ class SmartMatchControllerIntegrationTest(
 
     fun stubSearchTags(tags: List<Pair<UUID, String>>, type: String = "INTEREST") {
         stubFor(
-            get(urlPathEqualTo("/api/tags"))
+            get(urlPathEqualTo("/api/v1/tags"))
                 .willReturn(
                     aResponse()
                         .withStatus(200)
@@ -200,7 +200,7 @@ class SmartMatchControllerIntegrationTest(
         stubGetTagsByIds(tagRegistry.distinct())
         stubSearchTags(emptyList())
         mockMvc
-            .put("/api/users") {
+            .put("/api/v1/users") {
                 with(jwtFor(userId))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -224,7 +224,7 @@ class SmartMatchControllerIntegrationTest(
         seedBatch(user.id!!, listOf(otherUser.id!! to 1))
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(user.id!!))
                 accept = APPLICATION_JSON
             }
@@ -266,7 +266,7 @@ class SmartMatchControllerIntegrationTest(
         )
 
         val response = mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(currentUser.id!!))
                 accept = APPLICATION_JSON
             }
@@ -314,7 +314,7 @@ class SmartMatchControllerIntegrationTest(
         )
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(currentUser.id!!))
                 accept = APPLICATION_JSON
             }
@@ -337,7 +337,7 @@ class SmartMatchControllerIntegrationTest(
         seedBatch(currentUser.id!!, listOf(matchedUser.id!! to 1))
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(matchedUser.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("privacy" to mapOf("showInterests" to false)),
@@ -348,7 +348,7 @@ class SmartMatchControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(currentUser.id!!))
                 accept = APPLICATION_JSON
             }
@@ -362,7 +362,7 @@ class SmartMatchControllerIntegrationTest(
 
     test("should require authentication") {
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -381,7 +381,7 @@ class SmartMatchControllerIntegrationTest(
         assignTags(matchedUser.id!!, listOf("hiking" to hikingTagId))
 
         val createResponse = mockMvc
-            .post("/api/smart-match") {
+            .post("/api/v1/smart-match") {
                 with(jwtFor(currentUser.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("userId" to matchedUser.id.toString()),
@@ -399,7 +399,7 @@ class SmartMatchControllerIntegrationTest(
             .toSmartMatchResponse(jsonMapper)
 
         mockMvc
-            .patch("/api/smart-match/${createResponse.id}") {
+            .patch("/api/v1/smart-match/${createResponse.id}") {
                 with(jwtFor(matchedUser.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("secondUserLiked" to true),
@@ -414,7 +414,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(currentUser.id!!))
                 accept = APPLICATION_JSON
             }
@@ -447,7 +447,7 @@ class SmartMatchControllerIntegrationTest(
         )
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -458,7 +458,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -479,7 +479,7 @@ class SmartMatchControllerIntegrationTest(
         seedBatch(viewer.id!!, listOf(other.id!! to 1))
 
         mockMvc
-            .post("/api/smart-match") {
+            .post("/api/v1/smart-match") {
                 with(jwtFor(viewer.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("userId" to other.id.toString(), "liked" to true),
@@ -493,7 +493,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -503,7 +503,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -513,7 +513,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(other.id!!))
                 accept = APPLICATION_JSON
             }
@@ -525,7 +525,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .post("/api/smart-match") {
+            .post("/api/v1/smart-match") {
                 with(jwtFor(other.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("userId" to viewer.id.toString(), "liked" to true),
@@ -536,7 +536,7 @@ class SmartMatchControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -568,7 +568,7 @@ class SmartMatchControllerIntegrationTest(
         )
 
         mockMvc
-            .post("/api/smart-match") {
+            .post("/api/v1/smart-match") {
                 with(jwtFor(viewer.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf("userId" to other.id.toString(), "liked" to false),
@@ -585,7 +585,7 @@ class SmartMatchControllerIntegrationTest(
         smartMatchRepository.findByFirstUserIdAndSecondUserId(viewer.id!!, other.id!!)!!.firstUserLiked shouldBe false
 
         mockMvc
-            .get("/api/smart-match/matched") {
+            .get("/api/v1/smart-match/matched") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -595,7 +595,7 @@ class SmartMatchControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/smart-match") {
+            .get("/api/v1/smart-match") {
                 with(jwtFor(viewer.id!!))
                 accept = APPLICATION_JSON
             }

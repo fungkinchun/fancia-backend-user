@@ -16,7 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.*
 
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping("/api/v1/chat")
 @Tag(name = "Chat", description = "Stream Chat token and channel provisioning")
 @SecurityRequirement(name = "bearerAuth")
 class ChatController(

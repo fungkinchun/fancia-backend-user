@@ -36,8 +36,8 @@ import com.fancia.backend.user.core.event.UserCreatedEvent
 import com.fancia.backend.user.core.repository.PasswordResetTokenRepository
 import com.fancia.backend.user.mapper.toProfileResponse
 import com.fancia.backend.user.mapper.toSmartMatchPerson
-import com.fancia.backend.user.core.repository.SmartMatchRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.SmartMatchRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
 import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.CommonServiceClient

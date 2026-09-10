@@ -17,7 +17,7 @@ import java.util.*
 
 @FeignClient(
     name = "common-internal-service",
-    path = "/internal",
+    path = "/internal/v1",
     configuration = [FeignConfig::class],
 )
 interface CommonInternalClient {

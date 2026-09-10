@@ -7,7 +7,7 @@ import com.fancia.backend.shared.user.core.exception.UserSlugInvalidException
 import com.fancia.backend.shared.user.core.exception.UserSlugTakenException
 import com.fancia.backend.shared.user.core.support.DefaultUserSlug
 import com.fancia.backend.user.core.entity.UserSlugHistory
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.UserSlugHistoryRepository
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime

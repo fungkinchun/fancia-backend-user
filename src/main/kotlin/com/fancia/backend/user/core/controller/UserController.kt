@@ -16,7 +16,7 @@ import org.springframework.web.servlet.view.RedirectView
 import java.util.*
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 @Tag(name = "Users", description = "User endpoints")
 @SecurityRequirement(name = "bearerAuth")
 class UserController(

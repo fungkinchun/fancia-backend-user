@@ -12,7 +12,7 @@ import com.fancia.backend.shared.user.core.exception.ReferralSelfClaimException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.core.entity.Referral
 import com.fancia.backend.user.core.repository.ReferralRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.PaymentInternalClient
 import org.slf4j.LoggerFactory

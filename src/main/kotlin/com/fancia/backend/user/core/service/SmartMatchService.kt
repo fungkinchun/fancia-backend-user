@@ -8,8 +8,8 @@ import com.fancia.backend.shared.user.core.entity.SmartMatch
 import com.fancia.backend.shared.user.core.entity.User
 import com.fancia.backend.shared.user.core.exception.*
 import com.fancia.backend.shared.common.redis.RedisQueryCache
-import com.fancia.backend.user.core.repository.SmartMatchRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.SmartMatchRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.NotificationInternalClient
 import com.fancia.backend.user.mapper.toDto
 import com.fancia.backend.shared.notification.core.dto.SendPushNotificationRequest

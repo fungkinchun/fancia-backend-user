@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import java.util.*
 
-@FeignClient(name = "interestgroup-service", path = "/api", configuration = [FeignConfig::class])
+@FeignClient(name = "interestgroup-service", path = "/api/v1", configuration = [FeignConfig::class])
 interface InterestGroupServiceClient {
     @GetMapping("/interest-groups/{id}")
     fun getInterestGroup(@PathVariable id: UUID): InterestGroupResponse

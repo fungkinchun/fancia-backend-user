@@ -16,7 +16,7 @@ import com.fancia.backend.shared.upload.storage.core.enums.UploadScope
 import com.fancia.backend.shared.upload.storage.core.service.FileStorageService
 import com.fancia.backend.shared.upload.storage.core.service.moveTmpToDedicatedPath
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.CommonInternalClient
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl

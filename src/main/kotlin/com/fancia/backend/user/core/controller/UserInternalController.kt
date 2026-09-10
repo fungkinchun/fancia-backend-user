@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/internal/users")
+@RequestMapping("/internal/v1/users")
 @Tag(name = "Users Internal", description = "Internal user endpoints for service-to-service calls")
 class UserInternalController(
     private val userService: UserService,

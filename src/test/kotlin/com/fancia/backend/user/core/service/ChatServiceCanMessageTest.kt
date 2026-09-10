@@ -8,8 +8,8 @@ import com.fancia.backend.user.config.ApplicationProperties
 import com.fancia.backend.user.config.StreamChatProperties
 import com.fancia.backend.user.core.repository.ChatChannelRepository
 import com.fancia.backend.user.core.repository.FriendshipRepository
-import com.fancia.backend.user.core.repository.SmartMatchRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.SmartMatchRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.CommonInternalClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import io.kotest.core.spec.style.FunSpec

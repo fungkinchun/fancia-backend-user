@@ -2,7 +2,7 @@ package com.fancia.backend.user
 
 import com.fancia.backend.shared.user.core.dto.UserResponse
 import com.fancia.backend.shared.user.core.enums.Gender
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -52,7 +52,7 @@ class UserControllerIntegrationTest(
     ): UserResponse {
         val password = "Password1a"
         val user = mockMvc
-            .post("/api/users") {
+            .post("/api/v1/users") {
                 content = jsonMapper.writeValueAsString(
                     mapOf(
                         "email" to email,
@@ -70,7 +70,7 @@ class UserControllerIntegrationTest(
 
         if (birthDate != null || gender != null || bio != null) {
             mockMvc
-                .put("/api/users") {
+                .put("/api/v1/users") {
                     with(jwtFor(user.id!!))
                     content = jsonMapper.writeValueAsString(
                         buildMap {
@@ -89,7 +89,7 @@ class UserControllerIntegrationTest(
 
     test("should create a new user") {
         val response = mockMvc
-            .post("/api/users") {
+            .post("/api/v1/users") {
                 val requestBody = mapOf(
                     "email" to "user@example.com",
                     "password" to "user@example.comA1",
@@ -127,7 +127,7 @@ class UserControllerIntegrationTest(
             "number" to 0
         )
         stubFor(
-            get(urlPathTemplate("/api/interest-groups/users/{userId}/memberships"))
+            get(urlPathTemplate("/api/v1/interest-groups/users/{userId}/memberships"))
                 .withQueryParam("userId", equalTo(createdUser.id.toString()))
                 .withQueryParam("role", equalTo("ADMIN"))
                 .withQueryParam("page", equalTo("0"))
@@ -144,7 +144,7 @@ class UserControllerIntegrationTest(
                 )
         )
 
-        mockMvc.delete("/api/users/${createdUser.id}") {
+        mockMvc.delete("/api/v1/users/${createdUser.id}") {
             with(jwt().jwt {
                 it.claim("userId", createdUser.id)
             })
@@ -177,7 +177,7 @@ class UserControllerIntegrationTest(
         )
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(requestBody)
                 contentType = APPLICATION_JSON
@@ -211,7 +211,7 @@ class UserControllerIntegrationTest(
         val user = registerUser(birthDate = birthDate, gender = Gender.M)
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -225,7 +225,7 @@ class UserControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/users/me") {
+            .get("/api/v1/users/me") {
                 with(jwtFor(user.id!!))
                 accept = APPLICATION_JSON
             }
@@ -260,7 +260,7 @@ class UserControllerIntegrationTest(
             "number" to 0,
         )
         stubFor(
-            post(urlPathEqualTo("/api/tags"))
+            post(urlPathEqualTo("/api/v1/tags"))
                 .willReturn(
                     aResponse()
                         .withStatus(201)
@@ -270,7 +270,7 @@ class UserControllerIntegrationTest(
         )
 
         mockMvc
-            .put("/api/users") {
+            .put("/api/v1/users") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -298,7 +298,7 @@ class UserControllerIntegrationTest(
         val user = registerUser()
 
         mockMvc
-            .put("/api/users") {
+            .put("/api/v1/users") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -341,7 +341,7 @@ class UserControllerIntegrationTest(
             "number" to 0,
         )
         stubFor(
-            post(urlPathEqualTo("/api/tags"))
+            post(urlPathEqualTo("/api/v1/tags"))
                 .willReturn(
                     aResponse()
                         .withStatus(201)
@@ -351,7 +351,7 @@ class UserControllerIntegrationTest(
         )
 
         mockMvc
-            .put("/api/users") {
+            .put("/api/v1/users") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -385,7 +385,7 @@ class UserControllerIntegrationTest(
         )
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -402,7 +402,7 @@ class UserControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/users/email/$email") {
+            .get("/api/v1/users/email/$email") {
                 accept = APPLICATION_JSON
             }
             .andDo { print() }
@@ -429,7 +429,7 @@ class UserControllerIntegrationTest(
         )
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("visibility" to "PRIVATE"))
                 contentType = APPLICATION_JSON
@@ -438,7 +438,7 @@ class UserControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/users/email/$email") {
+            .get("/api/v1/users/email/$email") {
                 accept = APPLICATION_JSON
             }
             .andDo { print() }
@@ -466,7 +466,7 @@ class UserControllerIntegrationTest(
         val handle = "jane-doe-${UUID.randomUUID().toString().take(8)}"
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to handle))
                 contentType = APPLICATION_JSON
@@ -479,7 +479,7 @@ class UserControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/users/$handle") {
+            .get("/api/v1/users/$handle") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -490,7 +490,7 @@ class UserControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/users/${user.id}") {
+            .get("/api/v1/users/${user.id}") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -504,7 +504,7 @@ class UserControllerIntegrationTest(
         val handle = "avail-${UUID.randomUUID().toString().take(8)}"
 
         mockMvc
-            .get("/api/users/handles/$handle/available") {
+            .get("/api/v1/users/handles/$handle/available") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -513,7 +513,7 @@ class UserControllerIntegrationTest(
             }
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to handle))
                 contentType = APPLICATION_JSON
@@ -522,7 +522,7 @@ class UserControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/users/handles/$handle/available") {
+            .get("/api/v1/users/handles/$handle/available") {
                 with(jwtFor(user.id!!))
                 accept = APPLICATION_JSON
             }
@@ -532,7 +532,7 @@ class UserControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/users/handles/$handle/available") {
+            .get("/api/v1/users/handles/$handle/available") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -547,7 +547,7 @@ class UserControllerIntegrationTest(
         val secondHandle = "second-${UUID.randomUUID().toString().take(8)}"
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to firstHandle))
                 contentType = APPLICATION_JSON
@@ -560,7 +560,7 @@ class UserControllerIntegrationTest(
         userRepository.save(entity)
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to secondHandle))
                 contentType = APPLICATION_JSON
@@ -572,7 +572,7 @@ class UserControllerIntegrationTest(
             }
 
         mockMvc
-            .get("/api/users/$firstHandle") {
+            .get("/api/v1/users/$firstHandle") {
                 accept = APPLICATION_JSON
             }
             .andExpect {
@@ -588,7 +588,7 @@ class UserControllerIntegrationTest(
         val secondHandle = "cool2-${UUID.randomUUID().toString().take(8)}"
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to firstHandle))
                 contentType = APPLICATION_JSON
@@ -597,7 +597,7 @@ class UserControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to secondHandle))
                 contentType = APPLICATION_JSON

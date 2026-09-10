@@ -2,7 +2,7 @@ package com.fancia.backend.user
 
 import com.fancia.backend.shared.user.core.dto.UserResponse
 import com.fancia.backend.user.core.repository.ReferralRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.configureFor
 import com.github.tomakehurst.wiremock.client.WireMock.post
@@ -65,7 +65,7 @@ class ReferralControllerIntegrationTest(
     ): UserResponse {
         val password = "Password1a"
         return mockMvc
-            .post("/api/users") {
+            .post("/api/v1/users") {
                 content = jsonMapper.writeValueAsString(
                     mapOf(
                         "email" to email,
@@ -84,7 +84,7 @@ class ReferralControllerIntegrationTest(
 
     fun setSlug(userId: UUID, handle: String) {
         mockMvc
-            .patch("/api/users/settings") {
+            .patch("/api/v1/users/settings") {
                 with(jwtFor(userId))
                 content = jsonMapper.writeValueAsString(mapOf("slug" to handle))
                 contentType = APPLICATION_JSON
@@ -95,7 +95,7 @@ class ReferralControllerIntegrationTest(
 
     fun stubReferralPremiumGrant(userId: UUID, expiresAt: LocalDateTime = LocalDateTime.now().plusDays(30)) {
         stubFor(
-            post(urlPathEqualTo("/internal/subscriptions/referral"))
+            post(urlPathEqualTo("/internal/v1/subscriptions/referral"))
                 .willReturn(
                     aResponse()
                         .withStatus(200)
@@ -118,7 +118,7 @@ class ReferralControllerIntegrationTest(
         val handle = userRepository.findById(referrer.id!!).orElseThrow().slug!!
 
         mockMvc
-            .get("/api/referrals") {
+            .get("/api/v1/referrals") {
                 with(jwtFor(referrer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -131,7 +131,7 @@ class ReferralControllerIntegrationTest(
         stubReferralPremiumGrant(referee.id!!)
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -140,7 +140,7 @@ class ReferralControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .get("/api/referrals") {
+            .get("/api/v1/referrals") {
                 with(jwtFor(referrer.id!!))
                 accept = APPLICATION_JSON
             }
@@ -163,7 +163,7 @@ class ReferralControllerIntegrationTest(
         stubReferralPremiumGrant(referee.id!!, expiresAt)
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -177,14 +177,14 @@ class ReferralControllerIntegrationTest(
             }
 
         referralRepository.existsByRefereeUserId(referee.id!!) shouldBe true
-        verify(postRequestedFor(urlPathEqualTo("/internal/subscriptions/referral")))
+        verify(postRequestedFor(urlPathEqualTo("/internal/v1/subscriptions/referral")))
     }
 
     test("should reject unknown referrer slug") {
         val referee = registerUser()
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to "missing-handle"))
                 contentType = APPLICATION_JSON
@@ -202,7 +202,7 @@ class ReferralControllerIntegrationTest(
         setSlug(user.id!!, handle)
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(user.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -223,7 +223,7 @@ class ReferralControllerIntegrationTest(
         stubReferralPremiumGrant(referee.id!!)
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -232,7 +232,7 @@ class ReferralControllerIntegrationTest(
             .andExpect { status { isOk() } }
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -255,7 +255,7 @@ class ReferralControllerIntegrationTest(
         userRepository.save(entity)
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON
@@ -274,12 +274,12 @@ class ReferralControllerIntegrationTest(
 
         val referee = registerUser()
         stubFor(
-            post(urlPathEqualTo("/internal/subscriptions/referral"))
+            post(urlPathEqualTo("/internal/v1/subscriptions/referral"))
                 .willReturn(aResponse().withStatus(500)),
         )
 
         mockMvc
-            .post("/api/referrals/claim") {
+            .post("/api/v1/referrals/claim") {
                 with(jwtFor(referee.id!!))
                 content = jsonMapper.writeValueAsString(mapOf("referrerSlug" to handle))
                 contentType = APPLICATION_JSON

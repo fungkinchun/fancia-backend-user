@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/api/users/{userId}/comments")
+@RequestMapping("/api/v1/users/{userId}/comments")
 @Tag(name = "User Comments", description = "Comments on user profiles")
 @SecurityRequirement(name = "bearerAuth")
 class UserCommentController(

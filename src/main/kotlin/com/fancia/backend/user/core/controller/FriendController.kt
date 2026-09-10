@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
 @RestController
-@RequestMapping("/api/friends")
+@RequestMapping("/api/v1/friends")
 @Tag(name = "Friends", description = "Friend requests and friendships")
 @SecurityRequirement(name = "bearerAuth")
 class FriendController(

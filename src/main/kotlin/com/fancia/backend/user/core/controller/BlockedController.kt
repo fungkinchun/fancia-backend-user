@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 @RestController
-@RequestMapping("/api/blocked")
+@RequestMapping("/api/v1/blocked")
 @Tag(name = "Blocked resources", description = "Block/hide users, posts, comments, and tags")
 @SecurityRequirement(name = "bearerAuth")
 class BlockedController(

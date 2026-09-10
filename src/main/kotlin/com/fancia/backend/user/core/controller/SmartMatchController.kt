@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/api/smart-match")
+@RequestMapping("/api/v1/smart-match")
 @Tag(name = "Smart Match", description = "Interest-based people matching")
 @SecurityRequirement(name = "bearerAuth")
 class SmartMatchController(

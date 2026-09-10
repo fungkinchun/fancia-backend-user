@@ -54,7 +54,7 @@ class UserPostControllerIntegrationTest(
     ): UserResponse {
         val password = "Password1a"
         val user = mockMvc
-            .post("/api/users") {
+            .post("/api/v1/users") {
                 content = jsonMapper.writeValueAsString(
                     mapOf(
                         "email" to email,
@@ -72,7 +72,7 @@ class UserPostControllerIntegrationTest(
 
         if (birthDate != null || gender != null || bio != null) {
             mockMvc
-                .put("/api/users") {
+                .put("/api/v1/users") {
                     with(jwtFor(user.id!!))
                     content = jsonMapper.writeValueAsString(
                         buildMap {
@@ -103,7 +103,7 @@ class UserPostControllerIntegrationTest(
             createdAt = null,
         )
         stubFor(
-            post(urlPathEqualTo("/internal/posts"))
+            post(urlPathEqualTo("/internal/v1/posts"))
                 .willReturn(
                     aResponse()
                         .withStatus(201)
@@ -112,7 +112,7 @@ class UserPostControllerIntegrationTest(
                 )
         )
         val responseBody = mockMvc
-            .post("/api/users/$userId/posts") {
+            .post("/api/v1/users/$userId/posts") {
                 with(jwt().jwt { it.claim("userId", userId) })
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -136,7 +136,7 @@ class UserPostControllerIntegrationTest(
         response.targetId shouldBe userId
 
         verify(
-            postRequestedFor(urlPathEqualTo("/internal/posts"))
+            postRequestedFor(urlPathEqualTo("/internal/v1/posts"))
                 .withRequestBody(matchingJsonPath("$.targetId", equalTo(userId.toString())))
                 .withRequestBody(matchingJsonPath("$.authorUserId", equalTo(userId.toString()))),
         )
@@ -147,7 +147,7 @@ class UserPostControllerIntegrationTest(
         val currentUserId = UUID.randomUUID()
 
         mockMvc
-            .post("/api/users/$missingUserId/posts") {
+            .post("/api/v1/users/$missingUserId/posts") {
                 with(jwt().jwt { it.claim("userId", currentUserId) })
                 content = jsonMapper.writeValueAsString(
                     mapOf(
@@ -161,7 +161,7 @@ class UserPostControllerIntegrationTest(
             }
             .andExpect { status { isBadRequest() } }
 
-        verify(0, postRequestedFor(urlPathEqualTo("/internal/posts")))
+        verify(0, postRequestedFor(urlPathEqualTo("/internal/v1/posts")))
     }
 })
 

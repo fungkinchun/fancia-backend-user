@@ -23,7 +23,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories
         "com.fancia.backend.shared.common.moderation.core.entity",
     ]
 )
-@EnableJpaRepositories
+@EnableJpaRepositories(
+    basePackages = [
+        "com.fancia.backend.user.core.repository",
+        "com.fancia.backend.shared.user.core.repository",
+        "com.fancia.backend.shared.common.moderation.core.repository",
+    ]
+)
 @EnableFeignClients
 @SpringBootApplication(
     scanBasePackages = [

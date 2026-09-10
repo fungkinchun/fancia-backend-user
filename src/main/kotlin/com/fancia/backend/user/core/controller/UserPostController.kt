@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/api/users/{userId}/posts")
+@RequestMapping("/api/v1/users/{userId}/posts")
 @Tag(name = "User Posts", description = "Posts on user profiles")
 @SecurityRequirement(name = "bearerAuth")
 class UserPostController(

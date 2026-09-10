@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import java.util.*
 
-@FeignClient(name = "common-service", path = "/api", configuration = [FeignConfig::class])
+@FeignClient(name = "common-service", path = "/api/v1", configuration = [FeignConfig::class])
 interface CommonServiceClient {
     @GetMapping("/tags")
     fun searchTags(

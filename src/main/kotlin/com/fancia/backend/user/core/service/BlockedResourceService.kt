@@ -12,7 +12,7 @@ import com.fancia.backend.shared.common.moderation.core.exception.SelfBlockExcep
 import com.fancia.backend.shared.common.moderation.core.exception.UnsupportedBlockedResourceTypeException
 import com.fancia.backend.shared.common.redis.CacheKeys
 import com.fancia.backend.shared.common.redis.RedisQueryCache
-import com.fancia.backend.user.core.repository.BlockedResourceRepository
+import com.fancia.backend.shared.common.moderation.core.repository.BlockedResourceRepository
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

@@ -15,7 +15,7 @@ import com.fancia.backend.shared.user.core.exception.FriendshipNotFoundException
 import com.fancia.backend.shared.user.core.exception.FriendshipSelfRequestException
 import com.fancia.backend.shared.user.core.exception.UserNotFoundException
 import com.fancia.backend.user.core.repository.FriendshipRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.NotificationInternalClient
 import com.fancia.backend.user.mapper.toDto
 import jakarta.validation.Valid

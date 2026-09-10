@@ -5,7 +5,7 @@ import com.fancia.backend.shared.user.core.entity.ChatChannel
 import com.fancia.backend.shared.user.core.enums.ChatChannelKind
 import com.fancia.backend.user.config.StreamChatProperties
 import com.fancia.backend.user.core.repository.ChatChannelRepository
-import com.fancia.backend.user.core.repository.UserRepository
+import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.external.NotificationInternalClient
 import io.getstream.chat.java.exceptions.InvalidWebhookError
 import io.getstream.chat.java.models.App
