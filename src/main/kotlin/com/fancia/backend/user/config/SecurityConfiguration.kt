@@ -20,7 +20,7 @@ class SecurityConfiguration {
         val defaultResolver = DefaultBearerTokenResolver()
         return BearerTokenResolver { request ->
             val path = request.requestURI.removePrefix(request.contextPath ?: "")
-            if (path.startsWith("/api/webhooks/")) {
+            if (path.startsWith("/api/v1/webhooks/") || path.startsWith("/api/webhooks/")) {
                 null
             } else {
                 defaultResolver.resolve(request)
@@ -35,14 +35,14 @@ class SecurityConfiguration {
     ): SecurityFilterChain {
         http.authorizeHttpRequests { customizer ->
             customizer.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-            customizer.requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
-            customizer.requestMatchers("/api/smart-match", "/api/smart-match/**").authenticated()
-            customizer.requestMatchers("/api/chat", "/api/chat/**").authenticated()
-            customizer.requestMatchers("/api/friends", "/api/friends/**").authenticated()
-            customizer.requestMatchers(HttpMethod.GET, "/api/users/**").permitAll()
-            customizer.requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-            customizer.requestMatchers(HttpMethod.POST, "/api/users/forgot-password").permitAll()
-            customizer.requestMatchers(HttpMethod.PATCH, "/api/users/reset-password").permitAll()
+            customizer.requestMatchers(HttpMethod.POST, "/api/v1/webhooks/**").permitAll()
+            customizer.requestMatchers("/api/v1/smart-match", "/api/v1/smart-match/**").authenticated()
+            customizer.requestMatchers("/api/v1/chat", "/api/v1/chat/**").authenticated()
+            customizer.requestMatchers("/api/v1/friends", "/api/v1/friends/**").authenticated()
+            customizer.requestMatchers(HttpMethod.GET, "/api/v1/users/**").permitAll()
+            customizer.requestMatchers(HttpMethod.POST, "/api/v1/users").permitAll()
+            customizer.requestMatchers(HttpMethod.POST, "/api/v1/users/forgot-password").permitAll()
+            customizer.requestMatchers(HttpMethod.PATCH, "/api/v1/users/reset-password").permitAll()
             customizer.requestMatchers(HttpMethod.PUT, "/internal/v1/users/*/premium").permitAll()
             customizer.requestMatchers(HttpMethod.GET, "/internal/v1/users/*/blocked").permitAll()
             customizer.requestMatchers(HttpMethod.GET, "/internal/v1/users/*").permitAll()

@@ -41,8 +41,11 @@ import com.fancia.backend.shared.user.core.repository.UserRepository
 import com.fancia.backend.user.core.repository.VerificationCodeRepository
 import com.fancia.backend.user.core.support.UserSlugService
 import com.fancia.backend.user.external.CommonServiceClient
+import com.fancia.backend.user.external.EventInternalClient
+import com.fancia.backend.user.external.InterestGroupInternalClient
 import com.fancia.backend.user.external.InterestGroupServiceClient
 import com.fancia.backend.user.external.NotificationInternalClient
+import com.fancia.backend.user.external.VenueInternalClient
 import com.fancia.backend.shared.notification.core.dto.SendPasswordResetEmailRequest
 import com.fancia.backend.shared.notification.core.dto.SendWelcomeEmailRequest
 import com.fancia.backend.user.mapper.toDto
@@ -73,6 +76,9 @@ class UserService(
     private val fileUploadService: FileStorageService,
     private val applicationEventPublisher: ApplicationEventPublisher,
     private val interestGroupServiceClient: InterestGroupServiceClient,
+    private val interestGroupInternalClient: InterestGroupInternalClient,
+    private val eventInternalClient: EventInternalClient,
+    private val venueInternalClient: VenueInternalClient,
     private val commonServiceClient: CommonServiceClient,
     private val notificationInternalClient: NotificationInternalClient,
     private val applicationProperties: ApplicationProperties,
@@ -344,11 +350,18 @@ class UserService(
                 groupIds = memberships.content.map { it.interestGroupId.toString() }
             )
         }
+        notifyDownstreamServicesOfDeletion(requestId)
         userErasureService.erase(user)
         userRepository.delete(user)
         invalidateUserCaches(requestId)
         invalidateSmartMatchDeck(requestId)
         return requestId
+    }
+
+    private fun notifyDownstreamServicesOfDeletion(userId: UUID) {
+        eventInternalClient.deleteUserResources(userId)
+        venueInternalClient.deleteUserResources(userId)
+        interestGroupInternalClient.deleteUserResources(userId)
     }
 
     fun smartMatch(jwt: Jwt, pageable: Pageable): Page<SmartMatchPersonResponse> {

@@ -40,6 +40,10 @@ class UserControllerIntegrationTest(
 
     beforeEach {
         reset()
+        stubFor(
+            delete(urlPathMatching("/internal/v1/users/.*/resources"))
+                .willReturn(aResponse().withStatus(204))
+        )
     }
     fun jwtFor(userId: UUID) = jwt().jwt { it.claim("userId", userId) }
     fun registerUser(

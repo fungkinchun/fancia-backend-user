@@ -103,6 +103,10 @@ spring:
             url: ${EVENT_SERVICE_URL:#{null}}
           event-internal-service:
             url: ${EVENT_INTERNAL_SERVICE_URL:#{null}}
+          venue-service:
+            url: ${VENUE_SERVICE_URL:#{null}}
+          venue-internal-service:
+            url: ${VENUE_INTERNAL_SERVICE_URL:#{null}}
           payment-internal-service:
             url: ${PAYMENT_INTERNAL_SERVICE_URL:#{null}}
           notification-service:

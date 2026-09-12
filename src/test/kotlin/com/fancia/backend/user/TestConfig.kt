@@ -48,6 +48,15 @@ class TestConfig {
             registry.add("spring.cloud.openfeign.client.config.interestgroup-service.url") {
                 wiremock.baseUrl
             }
+            registry.add("spring.cloud.openfeign.client.config.interestgroup-internal-service.url") {
+                wiremock.baseUrl
+            }
+            registry.add("spring.cloud.openfeign.client.config.event-internal-service.url") {
+                wiremock.baseUrl
+            }
+            registry.add("spring.cloud.openfeign.client.config.venue-internal-service.url") {
+                wiremock.baseUrl
+            }
             registry.add("spring.cloud.openfeign.client.config.common-service.url") {
                 wiremock.baseUrl
             }
